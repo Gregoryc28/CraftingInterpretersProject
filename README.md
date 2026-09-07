@@ -1,4 +1,4 @@
-# Lox Interpreter - Chapter 4 (Scanning)
+# Lox Interpreter
 **Author:** Gregory Cohen (glcohen2@crimson.ua.edu)
 **Course:** CS503
 
