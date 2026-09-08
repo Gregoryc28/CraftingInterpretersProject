@@ -7,19 +7,24 @@
 ;; This is the main entry point for the Lox interpreter.
 ;; It handles command-line arguments, file reading, and REPL functionality.
 (ns lox.core
-  (:import [java.nio.file Files Paths]
-           [java.nio.charset Charset]
-           [java.io BufferedReader InputStreamReader]),
-  (:require [lox.scanner :as scanner]
-            [lox.error :as err]))
+    (:import [java.nio.file Files Paths]
+      [java.nio.charset Charset]
+      [java.io BufferedReader InputStreamReader])
+    (:require [lox.scanner :as scanner]
+      [lox.parser :as parser]
+      [lox.ast-printer :as printer]
+      [lox.error :as err]))
 
-;; The run function is a placeholder for the main scanning and interpreting logic.
+;; Function to run Lox source code from a string
 (defn run [source]
-  ; Scan the source code into tokens and print each token to standard output
-  (let [tokens (scanner/scan-tokens source)]
-    ; Iterate over the tokens and print each one
-    (doseq [token tokens]
-      (println token))))
+      ; Scan the source code into tokens and parse them into an AST
+      (let [tokens (scanner/scan-tokens source)
+            ast (parser/parse tokens)]
+           ;; Stop if there was a syntax error during scanning or parsing
+           (when-not @err/had-error
+                     ;; If an AST was successfully generated, print it
+                     (when ast
+                           (println (printer/print-ast ast))))))
 
 ;; Function to run a Lox script from a file
 (defn run-file [path]
