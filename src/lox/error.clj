@@ -19,3 +19,14 @@
 ;; Convenience function for reporting errors without a specific location
 (defn error [line message]
   (report line "" message))
+
+;; --- Runtime Error Handling ---
+
+(def had-runtime-error (atom false))
+
+(defn runtime-error [token message]
+      ; Prints the runtime error message along with the line number to standard error
+      (binding [*out* *err*]
+               (println (str message "\n[line " (:line token) "]")))
+      ; Here the reset! function in clojure allows us to set the value of the atom had-runtime-error to true, indicating that a runtime error has occurred.
+      (reset! had-runtime-error true))

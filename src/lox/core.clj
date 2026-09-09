@@ -13,28 +13,30 @@
     (:require [lox.scanner :as scanner]
       [lox.parser :as parser]
       [lox.ast-printer :as printer]
-      [lox.error :as err]))
+      [lox.error :as err]
+      [lox.interpreter :as interpreter]))
 
 ;; Function to run Lox source code from a string
 (defn run [source]
-      ; Scan the source code into tokens and parse them into an AST
+      ; Scan the source code into tokens, parse the tokens into an AST, and interpret the AST if no errors occurred.
       (let [tokens (scanner/scan-tokens source)
             ast (parser/parse tokens)]
-           ;; Stop if there was a syntax error during scanning or parsing
+           ; Check if any errors occurred during scanning or parsing before interpreting the AST
            (when-not @err/had-error
-                     ;; If an AST was successfully generated, print it
                      (when ast
-                           (println (printer/print-ast ast))))))
+                           ;; Replace the ast-printer call with our new interpreter
+                           (interpreter/interpret ast)))))
 
-;; Function to run a Lox script from a file
+; Function to run Lox source code from a file
 (defn run-file [path]
-  ; Read the file's bytes and convert them to a string using the default charset using array conversion
-  (let [bytes (Files/readAllBytes (Paths/get path (into-array String [])))
-        source (String. bytes (Charset/defaultCharset))]
-    ; Run the source code and check for errors
-    (run source)
-    ; If an error occurred during execution, exit with status code 65
-    (when @err/had-error (System/exit 65))))
+      ; Read the entire file into a string, run the source code, and handle any errors that occur.
+      (let [bytes (Files/readAllBytes (Paths/get path (into-array String [])))
+            source (String. bytes (Charset/defaultCharset))]
+           ; Run the source code and check for errors, exiting with appropriate status codes if errors occurred.
+           (run source)
+           (when @err/had-error (System/exit 65))
+           ;; Add the runtime error exit code check
+           (when @err/had-runtime-error (System/exit 70))))
 
 ;; Function to run the REPL (Read-Eval-Print Loop)
 (defn run-prompt []
