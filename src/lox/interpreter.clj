@@ -6,12 +6,17 @@
 
 (ns lox.interpreter
     (:require [lox.expr :as expr]
+      [lox.stmt :as stmt]
+      [lox.environment :as env]
       [lox.error :as err]
       [clojure.string :as str]))
 
 ;; We use a multimethod dispatching on the type of the expression record.
 ; This cleanly maps operations to our AST nodes without the need for a Visitor interface.
 (defmulti evaluate type)
+
+; Forward declaration for the stringify function, which converts evaluated values to strings for printing.
+(declare stringify)
 
 ;; 7.2.1 Evaluating literals
 
@@ -86,6 +91,29 @@
                       :bang-equal (not (= left right))
                       :equal-equal (= left right))))
 
+; Used to execute statements, which are currently limited to print statements and expression statements.
+(defmulti execute type)
+
+(defmethod execute lox.stmt.Expression [stmt]
+           (evaluate (:expression stmt))
+           nil)
+
+(defmethod execute lox.stmt.Print [stmt]
+           (let [value (evaluate (:expression stmt))]
+                (println (stringify value)))
+           nil)
+
+(defmethod execute lox.stmt.Var [stmt]
+           (let [value (if (:initializer stmt)
+                         (evaluate (:initializer stmt))
+                         nil)]
+                (env/define (:lexeme (:name stmt)) value))
+           nil)
+
+;; --- Variable Evaluation ---
+
+(defmethod evaluate lox.expr.Variable [expr]
+           (env/get-var (:name expr)))
 
 ;; --- 7.4 Hooking Up the Interpreter ---
 
@@ -100,12 +128,39 @@
          :else (str val)))
 
 ; This function interprets an expression by evaluating it and printing the result. It also handles runtime errors gracefully, printing an error message if one occurs.
-(defn interpret [expression]
+(defn interpret [statements]
       (try
-        (let [value (evaluate expression)]
-             (println (stringify value)))
+        (doseq [statement statements]
+               (execute statement))
         (catch clojure.lang.ExceptionInfo e
           (let [data (ex-data e)]
                (if (= :runtime-error (:type data))
                  (err/runtime-error (:token data) (ex-message e))
                  (throw e))))))
+
+; Used to execute statements, which are currently limited to print statements and expression statements.
+(defmulti execute type)
+
+; Will execute a statement by evaluating its expression and printing the result.
+; It also handles runtime errors gracefully, printing an error message if one occurs.
+(defmethod execute lox.stmt.Print [stmt]
+           (let [value (evaluate (:expression stmt))]
+                (println (stringify value))))
+
+; Will execute an expression statement by evaluating its expression.
+(defmethod execute lox.stmt.Expression [stmt]
+           (evaluate (:expression stmt))
+           nil) ;; Explicitly return nil as statements don't yield values
+
+;; 8.4.2 Assignment Semantics
+(defmethod evaluate lox.expr.Assign [expr]
+           (let [value (evaluate (:value expr))]
+                (env/assign (:name expr) value)
+                value))
+
+;; 8.5.2 Block Syntax and Semantics
+(defmethod execute lox.stmt.Block [stmt]
+           (env/with-new-environment
+             (doseq [statement (:statements stmt)]
+                    (execute statement)))
+           nil)

@@ -16,3 +16,5 @@
 (defrecord Grouping [expression])
 (defrecord Literal [value])
 (defrecord Unary [operator right])
+(defrecord Variable [name])
+(defrecord Assign [name value])

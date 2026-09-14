@@ -1,68 +1,58 @@
-; Crafting Interpreters - Chapter 6
+; Crafting Interpreters - Chapter 8
 ; Gregory Cohen
 ; CWID: 12440607
 ; Email: glcohen2@crimson.ua.edu
 ; CS503 - Dr. Yessick
 
-(ns lox.parser-test
+(ns lox.parser-test-chapter-eight
     (:require [clojure.test :refer :all]
       [lox.scanner :as scanner]
       [lox.parser :as parser]
-      [lox.ast-printer :as printer]))
+      [lox.stmt :as stmt]
+      [lox.expr :as expr]
+      [lox.token :as token]))
 
-;; Helper to go straight from a source string to a printed AST string
-(defn- parse-to-string [source]
-       (let [tokens (scanner/scan-tokens source)
-             ast (parser/parse tokens)]
-            (if ast
-              (printer/print-ast ast)
-              nil)))
+;; Helper to go straight from source to a list of parsed statements
+(defn- parse-code [source]
+       (let [tokens (scanner/scan-tokens source)]
+            (parser/parse tokens)))
 
-(deftest test-literals
-         (testing "Parses basic literals"
-                  (is (= "123.0" (parse-to-string "123")))
-                  (is (= "true" (parse-to-string "true")))
-                  (is (= "false" (parse-to-string "false")))
-                  (is (= "nil" (parse-to-string "nil")))
-                  (is (= "hello" (parse-to-string "\"hello\"")))))
+(deftest test-statement-parsing
+         (testing "Parses print and expression statements"
+                  (let [stmts (parse-code "print 123; 456;")]
+                       (is (= 2 (count stmts)))
+                       ;; Validate Print statement record
+                       (is (= (stmt/->Print (expr/->Literal 123.0))
+                              (first stmts)))
+                       ;; Validate Expression statement record
+                       (is (= (stmt/->Expression (expr/->Literal 456.0))
+                              (second stmts))))))
 
-(deftest test-unary
-         (testing "Parses unary operators"
-                  (is (= "(! true)" (parse-to-string "!true")))
-                  (is (= "(- 123.0)" (parse-to-string "-123")))
-                  ;; Unary operators should be able to nest
-                  (is (= "(! (! true))" (parse-to-string "!!true")))))
+(deftest test-variable-declaration
+         (testing "Parses variable declarations with and without initializers"
+                  (let [stmts (parse-code "var a = 1; var b;")]
+                       (is (= 2 (count stmts)))
+                       (is (= (stmt/->Var (token/->Token :identifier "a" nil 1) (expr/->Literal 1.0))
+                              (first stmts)))
+                       (is (= (stmt/->Var (token/->Token :identifier "b" nil 1) nil)
+                              (second stmts))))))
 
-(deftest test-binary-precedence
-         (testing "Enforces correct operator precedence"
-                  ;; Multiplication should bind tighter than addition
-                  (is (= "(+ 1.0 (* 2.0 3.0))" (parse-to-string "1 + 2 * 3")))
-                  ;; Division binds tighter than subtraction
-                  (is (= "(- 6.0 (/ 3.0 1.0))" (parse-to-string "6 - 3 / 1")))
-                  ;; Unary binds tighter than multiplication
-                  (is (= "(* (- 123.0) 45.0)" (parse-to-string "-123 * 45")))
-                  ;; Comparison is lower precedence than addition
-                  (is (= "(> (+ 1.0 2.0) 3.0)" (parse-to-string "1 + 2 > 3")))
-                  ;; Equality is the lowest precedence
-                  (is (= "(== 1.0 (< 2.0 3.0))" (parse-to-string "1 == 2 < 3")))))
+(deftest test-assignment
+         (testing "Parses assignment expressions correctly"
+                  (let [stmts (parse-code "a = 2;")]
+                       (is (= (stmt/->Expression (expr/->Assign (token/->Token :identifier "a" nil 1) (expr/->Literal 2.0)))
+                              (first stmts))))))
 
-(deftest test-associativity
-         (testing "Enforces left-associativity for binary operators"
-                  ;; 1 == 2 == 3 should parse as (1 == 2) == 3
-                  (is (= "(== (== 1.0 2.0) 3.0)" (parse-to-string "1 == 2 == 3")))
-                  (is (= "(- (- 5.0 3.0) 1.0)" (parse-to-string "5 - 3 - 1")))
-                  (is (= "(/ (/ 8.0 4.0) 2.0)" (parse-to-string "8 / 4 / 2")))))
+(deftest test-block-parsing
+         (testing "Parses block statements and nested declarations"
+                  (let [stmts (parse-code "{ var a = 1; }")]
+                       (is (= 1 (count stmts)))
+                       (is (= (stmt/->Block [(stmt/->Var (token/->Token :identifier "a" nil 1) (expr/->Literal 1.0))])
+                              (first stmts))))))
 
-(deftest test-grouping
-         (testing "Parentheses override standard precedence"
-                  (is (= "(* (group (+ 1.0 2.0)) 3.0)" (parse-to-string "(1 + 2) * 3")))
-                  (is (= "(group (group 1.0))" (parse-to-string "((1))")))
-                  ;; The textbook example from Chapter 5
-                  (is (= "(* (- 123.0) (group 45.67))" (parse-to-string "-123 * (45.67)")))))
-
-(deftest test-error-handling
-         (testing "Returns nil and catches errors on invalid syntax"
-                  ;; Missing right parenthesis
-                  (is (nil? (parse-to-string "(1 + 2")))
-                  ;; Missing expression after operator
-                  (is (nil? (parse-to-string "1 + ")))))
+(deftest test-error-recovery
+         (testing "Parser synchronizes and recovers from errors"
+                  (let [stmts (parse-code "var a = ; var b = 2;")]
+                       ;; The first statement throws an error and returns nil, but it should recover for 'b'
+                       (is (= (stmt/->Var (token/->Token :identifier "b" nil 1) (expr/->Literal 2.0))
+                              (last (remove nil? stmts)))))))
