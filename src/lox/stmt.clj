@@ -10,3 +10,5 @@
 (defrecord Print [expression])
 (defrecord Var [name initializer])
 (defrecord Block [statements])
+(defrecord If [condition then-branch else-branch])
+(defrecord While [condition body])

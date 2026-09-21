@@ -56,3 +56,54 @@
                        ;; The first statement throws an error and returns nil, but it should recover for 'b'
                        (is (= (stmt/->Var (token/->Token :identifier "b" nil 1) (expr/->Literal 2.0))
                               (last (remove nil? stmts)))))))
+
+
+; Chapter 9 tests for control flow statements
+
+(deftest test-if-statement
+         (testing "Parses if and else statements"
+                  (let [stmts (parse-code "if (true) print 1; else print 2;")]
+                       (is (= 1 (count stmts)))
+                       (is (= lox.stmt.If (type (first stmts))))
+                       (let [if-node (first stmts)]
+                            (is (= lox.expr.Literal (type (:condition if-node))))
+                            (is (= lox.stmt.Print (type (:then-branch if-node))))
+                            (is (= lox.stmt.Print (type (:else-branch if-node))))))))
+
+(deftest test-logical-operators
+         (testing "Parses 'and' / 'or' with correct precedence"
+                  (let [stmts (parse-code "true or false and true;")]
+                       ;; 'and' should bind tighter than 'or', nesting inside the right side of the 'or'
+                       (let [expr-stmt (first stmts)
+                             or-node (:expression expr-stmt)]
+                            (is (= lox.expr.Logical (type or-node)))
+                            (is (= :or (:type (:operator or-node))))
+                            (is (= lox.expr.Logical (type (:right or-node))))
+                            (is (= :and (:type (:operator (:right or-node)))))))))
+
+(deftest test-while-loop
+         (testing "Parses while loops"
+                  (let [stmts (parse-code "while (true) print 1;")]
+                       (is (= 1 (count stmts)))
+                       (is (= lox.stmt.While (type (first stmts)))))))
+
+(deftest test-for-loop-desugaring
+         (testing "For loops correctly desugar into blocks and while loops"
+                  (let [stmts (parse-code "for (var i = 0; i < 1; i = i + 1) print i;")]
+                       (is (= 1 (count stmts)))
+
+                       ;; 1. The outer node is a Block containing the initializer and the While loop
+                       (let [outer-block (first stmts)
+                             initializer (first (:statements outer-block))
+                             while-loop (second (:statements outer-block))]
+                            (is (= lox.stmt.Block (type outer-block)))
+                            (is (= lox.stmt.Var (type initializer)))
+                            (is (= lox.stmt.While (type while-loop)))
+
+                            ;; 2. The while loop body is a Block containing the original body and the increment
+                            (let [inner-block (:body while-loop)
+                                  original-body (first (:statements inner-block))
+                                  increment (second (:statements inner-block))]
+                                 (is (= lox.stmt.Block (type inner-block)))
+                                 (is (= lox.stmt.Print (type original-body)))
+                                 (is (= lox.stmt.Expression (type increment))))))))

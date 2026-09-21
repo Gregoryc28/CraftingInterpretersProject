@@ -18,3 +18,4 @@
 (defrecord Unary [operator right])
 (defrecord Variable [name])
 (defrecord Assign [name value])
+(defrecord Logical [left operator right])

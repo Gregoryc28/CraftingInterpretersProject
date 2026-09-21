@@ -11,7 +11,15 @@
       [lox.error :as err]))
 
 ; Forward declares for mutually recursive functions (avoid forward-reference errors).
-(declare parse-block parse-term parse-declaration parse-assignment)
+(declare parse-term parse-assignment)
+(declare parse-expression)
+(declare parse-declaration)
+(declare parse-statement)
+(declare parse-var-declaration)
+(declare parse-block)
+(declare parse-or)
+(declare parse-while-statement)
+(declare parse-for-statement)
 
 ;; --- Utility Functions ---
 
@@ -80,20 +88,41 @@
                              (recur (expr/->Binary expr operator right) final-toks))
                         [expr toks])))))
 
-;; assignment -> IDENTIFIER "=" assignment | equality ;
+;; logic_and -> equality ( "and" equality )* ;
+(defn parse-and [tokens]
+      (let [[left remaining] (parse-equality tokens)]
+           (loop [expr left
+                  toks remaining]
+                 (let [[operator next-toks] (match toks :and)]
+                      (if operator
+                        (let [[right final-toks] (parse-equality next-toks)]
+                             (recur (expr/->Logical expr operator right) final-toks))
+                        [expr toks])))))
+
+;; logic_or -> logic_and ( "or" logic_and )* ;
+(defn parse-or [tokens]
+      (let [[left remaining] (parse-and tokens)]
+           (loop [expr left
+                  toks remaining]
+                 (let [[operator next-toks] (match toks :or)]
+                      (if operator
+                        (let [[right final-toks] (parse-and next-toks)]
+                             (recur (expr/->Logical expr operator right) final-toks))
+                        [expr toks])))))
+
+;; assignment -> IDENTIFIER "=" assignment | logic_or ;
 (defn parse-assignment [tokens]
-      ;; First, parse the left-hand side as a normal equality expression
-      (let [[expr remaining] (parse-equality tokens)
+      ;; This now calls parse-or instead of parse-equality
+      (let [[expr remaining] (parse-or tokens)
             [eq-tok next-toks] (match remaining :equal)]
            (if eq-tok
-             ;; If we found an '=', parse the right-hand side recursively (right-associative)
+             ; If we found an '=', parse the right-hand side recursively (right-associative)
              (let [[value final-toks] (parse-assignment next-toks)]
-                  ;; Validate that the left-hand side is a valid assignment target
                   (if (= (type expr) lox.expr.Variable)
+                    ; If the left-hand side is a variable, create an assignment expression
                     [(expr/->Assign (:name expr) value) final-toks]
                     (parse-error eq-tok "Invalid assignment target.")))
-
-             ;; If there's no '=', just return the equality expression
+             ; If there's no '=', just return the logic_or expression
              [expr remaining])))
 
 ;; expression -> assignment ;
@@ -209,15 +238,102 @@
                            ;; If the statement is nil (due to error recovery), continue with the synchronized tokens
                            (recur next-toks statements))))))
 
-;; Updated to support block statements
+; Parse an if statement, which consists of an 'if' keyword, a condition in parentheses, a then-branch statement, and an optional else-branch statement.
+(defn parse-if-statement [tokens]
+      ; We assume the 'if' token has already been matched and stripped.
+      (let [[l-paren toks-after-l] (match tokens :left-paren)]
+           ; Check for the opening parenthesis and parse the condition expression, then check for the closing parenthesis and parse the then-branch statement. Finally, check for an optional else-branch statement.
+           (if-not l-paren (parse-error (peek-token tokens) "Expect '(' after 'if'.")
+                   (let [[condition toks-after-cond] (parse-expression toks-after-l)
+                         [r-paren toks-after-r] (match toks-after-cond :right-paren)]
+                        ; If there's no closing parenthesis, throw a parse error. Otherwise, parse the then-branch statement and check for an optional else-branch statement.
+                        (if-not r-paren (parse-error (peek-token toks-after-cond) "Expect ')' after if condition.")
+                                (let [[then-branch toks-after-then] (parse-statement toks-after-r)
+                                      [else-tok toks-after-else] (match toks-after-then :else)]
+                                     ; If there's an 'else' token, parse the else-branch statement; otherwise, return the if statement with a nil else-branch.
+                                     (if else-tok
+                                       (let [[else-branch final-toks] (parse-statement toks-after-else)]
+                                            [(stmt/->If condition then-branch else-branch) final-toks])
+                                       [(stmt/->If condition then-branch nil) toks-after-then])))))))
+
+(defn parse-while-statement [tokens]
+      ; We assume the 'while' token has already been matched and stripped.
+      (let [[l-paren toks-after-l] (match tokens :left-paren)]
+           (if-not l-paren (parse-error (peek-token tokens) "Expect '(' after 'while'.")
+                   (let [[condition toks-after-cond] (parse-expression toks-after-l)
+                         [r-paren toks-after-r] (match toks-after-cond :right-paren)]
+                        ; If there's no closing parenthesis, throw a parse error. Otherwise, parse the body statement.
+                        (if-not r-paren (parse-error (peek-token toks-after-cond) "Expect ')' after condition.")
+                                (let [[body final-toks] (parse-statement toks-after-r)]
+                                     [(stmt/->While condition body) final-toks]))))))
+
+(defn parse-for-statement [tokens]
+      (let [[l-paren toks-after-l] (match tokens :left-paren)]
+           (if-not l-paren (parse-error (peek-token tokens) "Expect '(' after 'for'.")
+                   (let [;; 1. Parse Initializer
+                         [initializer toks-after-init]
+                         (let [[semi next-toks] (match toks-after-l :semicolon)]
+                              (if semi
+                                [nil next-toks]
+                                ; If the next token is 'var', parse a variable declaration; otherwise, parse an expression statement.
+                                (let [[var-tok next-toks-var] (match toks-after-l :var)]
+                                     (if var-tok
+                                       (parse-var-declaration next-toks-var)
+                                       (parse-expression-statement toks-after-l)))))
+
+                         ;; 2. Parse Condition
+                         [condition toks-after-cond]
+                         (let [[semi next-toks] (match toks-after-init :semicolon)]
+                              (if semi
+                                [nil next-toks]
+                                ; If there's no semicolon, parse the condition expression and expect a semicolon after it.
+                                (let [[expr next-toks-expr] (parse-expression toks-after-init)
+                                      [semi2 next-toks-semi2] (match next-toks-expr :semicolon)]
+                                     (if-not semi2 (parse-error (peek-token next-toks-expr) "Expect ';' after loop condition.")
+                                             [expr next-toks-semi2]))))
+
+                         ;; 3. Parse Increment
+                         [increment toks-after-inc]
+                         (let [[r-paren next-toks] (match toks-after-cond :right-paren)]
+                              (if r-paren
+                                [nil next-toks]
+                                ; If there's no closing parenthesis, parse the increment expression and expect a closing parenthesis after it.
+                                (let [[expr next-toks-expr] (parse-expression toks-after-cond)
+                                      [r-paren2 next-toks-rparen2] (match next-toks-expr :right-paren)]
+                                     (if-not r-paren2 (parse-error (peek-token next-toks-expr) "Expect ')' after for clauses.")
+                                             [expr next-toks-rparen2]))))
+
+                         ;; 4. Parse Body
+                         [body final-toks] (parse-statement toks-after-inc)
+
+                         ;; 5. Desugar into While loop and Blocks
+                         body-with-inc (if increment
+                                         (stmt/->Block [body (stmt/->Expression increment)])
+                                         body)
+                         cond-expr (or condition (expr/->Literal true))
+                         while-node (stmt/->While cond-expr body-with-inc)
+                         final-node (if initializer
+                                      (stmt/->Block [initializer while-node])
+                                      while-node)]
+
+                        ; Return the final desugared node and the remaining tokens after parsing the for statement.
+                        [final-node final-toks]))))
+
+;; Updated to support if, while, and for statements
 (defn parse-statement [tokens]
-      (let [[print-tok next-toks] (match tokens :print)]
+      ; We check for the presence of specific statement keywords and delegate to the appropriate parsing function. If none match, we check for a block or default to an expression statement.
+      (let [[print-tok next-toks] (match tokens :print)
+            [if-tok if-next-toks] (match tokens :if)
+            [while-tok while-next-toks] (match tokens :while)
+            [for-tok for-next-toks] (match tokens :for)]
+           ; Check for specific statement types and parse accordingly. If none match, check for a block or default to an expression statement.
            (cond
              print-tok (parse-print-statement next-toks)
-
-             ;; Check if the statement starts with a left brace
+             if-tok (parse-if-statement if-next-toks)
+             while-tok (parse-while-statement while-next-toks)
+             for-tok (parse-for-statement for-next-toks)
+             ; If the current token is a left brace, parse a block statement.
              (= :left-brace (:type (peek-token tokens))) (parse-block (rest tokens))
-
              :else (parse-expression-statement tokens))))
 
 ; Used to parse variable declarations, which consist of a variable name, an optional initializer, and a terminating semicolon.

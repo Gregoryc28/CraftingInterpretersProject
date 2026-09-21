@@ -164,3 +164,36 @@
              (doseq [statement (:statements stmt)]
                     (execute statement)))
            nil)
+
+;; --- Statement Execution ---
+
+(defmethod execute lox.stmt.If [stmt]
+           ; Evaluate the condition of the if statement. If it's truthy, execute the then-branch; otherwise, execute the else-branch if it exists.
+           (if (truthy? (evaluate (:condition stmt)))
+             (execute (:then-branch stmt))
+             (when (:else-branch stmt)
+                   (execute (:else-branch stmt))))
+           nil)
+
+;; --- Expression Evaluation ---
+
+(defmethod evaluate lox.expr.Logical [expr]
+           (let [left (evaluate (:left expr))
+                 op-type (:type (:operator expr))]
+                (cond
+                  ;; For 'or', short-circuit if left is truthy
+                  (and (= op-type :or) (truthy? left)) left
+
+                  ;; For 'and', short-circuit if left is falsey
+                  (and (= op-type :and) (not (truthy? left))) left
+
+                  ;; Otherwise, evaluate and return the right operand
+                  :else (evaluate (:right expr)))))
+
+; Execute a while statement by repeatedly evaluating the condition and executing the body as long as the condition is truthy.
+(defmethod execute lox.stmt.While [stmt]
+           (loop []
+                 (when (truthy? (evaluate (:condition stmt)))
+                       (execute (:body stmt))
+                       (recur)))
+           nil)

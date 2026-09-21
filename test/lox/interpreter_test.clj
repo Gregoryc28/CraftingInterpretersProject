@@ -155,3 +155,61 @@
                   (let [err-out (with-err-str (eval-to-string "a = 2;"))]
                        (is @err/had-runtime-error)
                        (is (str/includes? err-out "Undefined variable 'a'")))))
+
+; Chapter 9 tests for control flow statements
+
+(deftest test-if-execution
+         (testing "Executes correct branch of if/else statements"
+                  (is (= "1" (eval-to-string "if (true) print 1; else print 2;")))
+                  (is (= "2" (eval-to-string "if (false) print 1; else print 2;")))
+                  (is (= "1" (eval-to-string "if (true) print 1;")))
+                  (is (= "" (eval-to-string "if (false) print 1;")))))
+
+(deftest test-logical-execution
+         (testing "Logical operators evaluate and return correct truthy/falsey values"
+                  (is (= "hi" (eval-to-string "print \"hi\" or 2;")))
+                  (is (= "yes" (eval-to-string "print nil or \"yes\";")))
+                  (is (= "yes" (eval-to-string "print true and \"yes\";")))
+                  (is (= "false" (eval-to-string "print false and \"no\";"))))
+
+         (testing "Logical operators short-circuit execution"
+                  (let [source "
+      var a = \"before\";
+      true or (a = \"mutated\");
+      print a;"]
+                       ;; The assignment should be skipped because 'true' short-circuits the 'or'
+                       (is (= "before" (eval-to-string source))))
+
+                  (let [source "
+      var a = \"before\";
+      false and (a = \"mutated\");
+      print a;"]
+                       ;; The assignment should be skipped because 'false' short-circuits the 'and'
+                       (is (= "before" (eval-to-string source))))))
+
+(deftest test-while-execution
+         (testing "While loops execute repeatedly based on condition"
+                  (let [source "
+      var i = 0;
+      while (i < 3) {
+        print i;
+        i = i + 1;
+      }"]
+                       (is (= "0\n1\n2" (eval-to-string source))))))
+
+(deftest test-for-execution
+         (testing "For loops execute initializer, condition, body, and increment"
+                  (let [source "
+      for (var i = 0; i < 3; i = i + 1) {
+        print i;
+      }"]
+                       (is (= "0\n1\n2" (eval-to-string source)))))
+
+         (testing "For loops can omit clauses safely"
+                  (let [source "
+      var i = 0;
+      for (; i < 2;) {
+        print i;
+        i = i + 1;
+      }"]
+                       (is (= "0\n1" (eval-to-string source))))))
