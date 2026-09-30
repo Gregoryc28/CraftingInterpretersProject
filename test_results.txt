@@ -1,0 +1,11 @@
+
+Running tests in #{"test"}
+
+Testing lox.ast-printer-test
+
+Testing lox.interpreter-test
+
+Testing lox.scanner-test
+
+Ran 28 tests containing 83 assertions.
+0 failures, 0 errors.

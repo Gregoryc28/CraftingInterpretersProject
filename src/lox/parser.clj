@@ -20,6 +20,8 @@
 (declare parse-or)
 (declare parse-while-statement)
 (declare parse-for-statement)
+(declare parse-call)
+(declare parse-function)
 
 ;; --- Utility Functions ---
 
@@ -161,13 +163,48 @@
              ;; Throw error instead of returning nil
              (parse-error (peek-token tokens) "Expect expression."))))
 
-;; unary -> ( "!" | "-" ) unary | primary ;
+; Used to parse expressions, which are currently limited to assignment and logical expressions.
+(defn- finish-call [callee tokens]
+       (loop [toks tokens
+              args []]
+             ; If the next token is a right parenthesis, we are done parsing arguments.
+             (let [[r-paren no-args-toks] (match toks :right-paren)]
+                  (if r-paren
+                    [(expr/->Call callee r-paren args) no-args-toks]
+                    (let [[arg next-toks] (parse-expression toks)
+                          args-list (conj args arg)
+                          _ (when (>= (count args-list) 255)
+                                  ; If we have more than 255 arguments, throw a parse error.
+                                  (err/error (:line (peek-token next-toks)) "Can't have more than 255 arguments."))]
+                         ; If the next token is a comma, we continue parsing arguments; otherwise, we expect a right parenthesis to close the call.
+                         (let [[comma after-comma] (match next-toks :comma)]
+                              (if comma
+                                (recur after-comma args-list)
+                                (let [[r-paren final-toks] (match next-toks :right-paren)]
+                                     (if r-paren
+                                       [(expr/->Call callee r-paren args-list) final-toks]
+                                       (parse-error (peek-token next-toks) "Expect ')' after arguments."))))))))))
+
+; Update parse-call to handle function calls:
+(defn parse-call [tokens]
+      ; Parse a primary expression first, which could be a variable, literal, or grouped expression. Then check for function call syntax (parentheses) and handle arguments.
+      (let [[expr remaining] (parse-primary tokens)]
+           (loop [callee expr
+                  toks remaining]
+                 (let [[l-paren next-toks] (match toks :left-paren)]
+                      (if l-paren
+                        ; If we find a left parenthesis, we parse the function call and its arguments using finish-call.
+                        (let [[new-callee final-toks] (finish-call callee next-toks)]
+                             (recur new-callee final-toks))
+                        [callee toks])))))
+
+; Update parse-unary to point to parse-call:
 (defn parse-unary [tokens]
       (let [[operator next-tokens] (match tokens :bang :minus)]
            (if operator
              (let [[right final-tokens] (parse-unary next-tokens)]
                   [(expr/->Unary operator right) final-tokens])
-             (parse-primary tokens))))
+             (parse-call tokens)))) ; Previously called parse-primary
 
 ;; factor -> unary ( ( "/" | "*" ) unary )* ;
 (defn parse-factor [tokens]
@@ -319,20 +356,63 @@
                         ; Return the final desugared node and the remaining tokens after parsing the for statement.
                         [final-node final-toks]))))
 
-;; Updated to support if, while, and for statements
+; Parse a function declaration, which consists of a name, parameters, and a body enclosed in braces.
+(defn parse-function [kind tokens]
+      (let [[name-tok toks1] (match tokens :identifier)
+            _ (when-not name-tok (parse-error (peek-token tokens) (str "Expect " kind " name.")))
+            [l-paren toks2] (match toks1 :left-paren)
+            _ (when-not l-paren (parse-error (peek-token toks1) (str "Expect '(' after " kind " name.")))]
+
+           ; Parse the parameters, which are a comma-separated list of identifiers, and ensure we don't exceed 255 parameters. Then parse the function body as a block statement.
+           (let [parse-params (fn [start-toks]
+                                  (loop [toks start-toks params []]
+                                        (if (check? toks :right-paren)
+                                          [params toks]
+                                          (let [[param-tok t1] (match toks :identifier)
+                                                _ (when-not param-tok (parse-error (peek-token toks) "Expect parameter name."))
+                                                new-params (conj params param-tok)
+                                                _ (when (>= (count new-params) 255)
+                                                        (err/error (:line param-tok) "Can't have more than 255 parameters."))
+                                                [comma t2] (match t1 :comma)]
+                                               (if comma (recur t2 new-params) [new-params t1])))))
+
+                 ; Parse the parameters and the function body, returning a Function node and the remaining tokens.
+                 [params toks3] (parse-params toks2)
+                 [r-paren toks4] (match toks3 :right-paren)
+                 _ (when-not r-paren (parse-error (peek-token toks3) "Expect ')' after parameters."))
+                 [l-brace toks5] (match toks4 :left-brace)
+                 _ (when-not l-brace (parse-error (peek-token toks4) (str "Expect '{' before " kind " body.")))
+
+                 ;; parse-block parses the statements inside the braces and returns the rest of the tokens
+                 [body final-toks] (parse-block toks5)]
+                [(stmt/->Function name-tok params (:statements body)) final-toks])))
+
+; Parse a return statement, which consists of the 'return' keyword, an optional expression, and a terminating semicolon.
+(defn parse-return-statement [keyword-tok tokens]
+      (let [[semi-tok next-toks] (match tokens :semicolon)]
+           (if semi-tok
+             ;; No return value
+             [(stmt/->Return keyword-tok nil) next-toks]
+             ;; Has a return value
+             (let [[value expr-toks] (parse-expression tokens)
+                   [final-semi final-toks] (match expr-toks :semicolon)]
+                  (if final-semi
+                    [(stmt/->Return keyword-tok value) final-toks]
+                    (parse-error (peek-token expr-toks) "Expect ';' after return value."))))))
+
+; Update parse-statement to handle the :return token:
 (defn parse-statement [tokens]
-      ; We check for the presence of specific statement keywords and delegate to the appropriate parsing function. If none match, we check for a block or default to an expression statement.
       (let [[print-tok next-toks] (match tokens :print)
             [if-tok if-next-toks] (match tokens :if)
             [while-tok while-next-toks] (match tokens :while)
-            [for-tok for-next-toks] (match tokens :for)]
-           ; Check for specific statement types and parse accordingly. If none match, check for a block or default to an expression statement.
+            [for-tok for-next-toks] (match tokens :for)
+            [return-tok return-next-toks] (match tokens :return)] ; Add return match
            (cond
              print-tok (parse-print-statement next-toks)
              if-tok (parse-if-statement if-next-toks)
              while-tok (parse-while-statement while-next-toks)
              for-tok (parse-for-statement for-next-toks)
-             ; If the current token is a left brace, parse a block statement.
+             return-tok (parse-return-statement return-tok return-next-toks) ; Route to new parser
              (= :left-brace (:type (peek-token tokens))) (parse-block (rest tokens))
              :else (parse-expression-statement tokens))))
 
@@ -353,14 +433,16 @@
 
 ; Declares a variable if the current token is 'var', otherwise it parses a statement.
 ; It also handles parse errors by synchronizing the parser state.
+; Update parse-declaration to look for the 'fun' keyword:
 (defn parse-declaration [tokens]
       (try
-        (let [[var-tok next-toks] (match tokens :var)]
-             (if var-tok
-               (parse-var-declaration next-toks)
-               (parse-statement tokens)))
+        (let [[fun-tok toks-after-fun] (match tokens :fun)
+              [var-tok toks-after-var] (match tokens :var)]
+             (cond
+               fun-tok (parse-function "function" toks-after-fun)
+               var-tok (parse-var-declaration toks-after-var)
+               :else (parse-statement tokens)))
         (catch clojure.lang.ExceptionInfo e
           (if (= :parse-error (:type (ex-data e)))
-            ;; If we catch a parse error, synchronize and return a nil statement
             [nil (synchronize tokens)]
             (throw e)))))

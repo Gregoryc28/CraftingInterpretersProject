@@ -107,3 +107,13 @@
                                  (is (= lox.stmt.Block (type inner-block)))
                                  (is (= lox.stmt.Print (type original-body)))
                                  (is (= lox.stmt.Expression (type increment))))))))
+
+(deftest test-function-declaration
+         (testing "Parses a function declaration with parameters"
+                  (let [stmts (parse-code "fun add(a, b) { print a + b; }")]
+                       (is (= 1 (count stmts)))
+                       (let [func-node (first stmts)]
+                            (is (= lox.stmt.Function (type func-node)))
+                            (is (= "add" (:lexeme (:name func-node))))
+                            (is (= ["a" "b"] (map :lexeme (:params func-node))))
+                            (is (= 1 (count (:body func-node))))))))

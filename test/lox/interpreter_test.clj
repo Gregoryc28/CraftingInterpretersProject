@@ -13,17 +13,27 @@
       [lox.environment :as env]
       [lox.error :as err]))
 
-;; --- Helper (Updated for Chapter 8 Statements and State) ---
+;; --- Helper (Updated for Chapter 10 Native Functions) ---
 (defn- eval-to-string [source]
        (reset! err/had-error false)
        (reset! err/had-runtime-error false)
        (let [tokens (scanner/scan-tokens source)
              stmts (parser/parse tokens)]
             (if (and stmts (not @err/had-error))
-              ;; Bind a completely fresh environment chain for every test to prevent state leaking
-              (binding [env/*env-chain* (list (atom {}))]
-                       (str/trim (with-out-str (interpreter/interpret stmts))))
+              ;; Bind a completely fresh environment chain seeded with default globals
+              (binding [env/*env-chain* (list (atom env/default-globals))]
+                       (clojure.string/trim (with-out-str (interpreter/interpret stmts))))
               nil)))
+
+;; --- Chapter 10 Tests ---
+
+(deftest test-native-functions
+         (testing "Can evaluate and execute the native clock function"
+                  (is (= "<native fn>" (eval-to-string "print clock;")))
+
+                  (let [result (eval-to-string "print clock();")]
+                       ;; The updated regex (E\d+)? accounts for scientific notation formatting
+                       (is (some? (re-matches #"\d+\.\d+(E\d+)?" result))))))
 
 ; Used to capture error output during tests
 (defmacro with-err-str
@@ -213,3 +223,77 @@
         i = i + 1;
       }"]
                        (is (= "0\n1" (eval-to-string source))))))
+
+(deftest test-call-runtime-errors
+         (testing "Catches attempts to call non-callable types"
+                  (let [err-out (with-err-str (eval-to-string "\"not a function\"();"))]
+                       (is @err/had-runtime-error)
+                       (is (clojure.string/includes? err-out "Can only call functions and classes."))))
+
+         (testing "Catches attempts to call a non-callable variable"
+                  (let [source "var a = 5; a();"
+                        err-out (with-err-str (eval-to-string source))]
+                       (is @err/had-runtime-error)
+                       (is (clojure.string/includes? err-out "Can only call functions and classes.")))))
+
+(deftest test-user-defined-functions
+         (testing "Can declare and execute a user-defined function"
+                  (let [source "
+      fun sayHi(first, last) {
+        print \"Hi, \" + first + \" \" + last + \"!\";
+      }
+      sayHi(\"Dear\", \"Reader\");"]
+                       (is (= "Hi, Dear Reader!" (eval-to-string source)))))
+
+         (testing "Locally scoped parameter variables do not leak"
+                  (let [source "
+      fun testScope(a) {
+        print a;
+      }
+      testScope(\"local\");
+      print a;"]
+                       (let [err-out (with-err-str (eval-to-string source))]
+                            (is @err/had-runtime-error)
+                            (is (clojure.string/includes? err-out "Undefined variable 'a'"))))))
+
+(deftest test-returns
+         (testing "Returns from a function immediately"
+                  (let [source "
+      fun returnIt() {
+        return 5;
+        print \"never reached\";
+      }
+      print returnIt();"]
+                       (is (= "5" (eval-to-string source)))))
+
+         (testing "Implicitly returns nil if no return statement is hit"
+                  (let [source "
+      fun empty() {}
+      print empty();"]
+                       (is (= "nil" (eval-to-string source))))))
+
+(deftest test-recursion
+         (testing "Can recursively compute fibonacci"
+                  (let [source "
+      fun fib(n) {
+        if (n <= 1) return n;
+        return fib(n - 2) + fib(n - 1);
+      }
+      print fib(6);"]
+                       (is (= "8" (eval-to-string source))))))
+
+(deftest test-closures
+         (testing "Functions close over their surrounding environment"
+                  (let [source "
+      fun makeCounter() {
+        var i = 0;
+        fun count() {
+          i = i + 1;
+          return i;
+        }
+        return count;
+      }
+      var counter = makeCounter();
+      print counter(); // 1
+      print counter(); // 2"]
+                       (is (= "1\n2" (eval-to-string source))))))

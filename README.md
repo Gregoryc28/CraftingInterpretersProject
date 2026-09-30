@@ -2,7 +2,7 @@
 **Author:** Gregory Cohen (glcohen2@crimson.ua.edu)
 **Course:** CS503
 
-This project is a Clojure implementation of the Lox interpreter from *Crafting Interpreters*. This submission covers Chapter 9 (Control Flow).
+This project is a Clojure implementation of the Lox interpreter from *Crafting Interpreters*. This submission covers Chapter 10 (Functions).
 
 ## Prerequisites & Installation
 This project is written in Clojure and uses `deps.edn`. You must have the Clojure CLI tools installed to execute the application and the test suite.
@@ -38,3 +38,6 @@ All commands must be executed from the root of this project folder (where the `d
 
 **To run the unit tests:**
 `clj -M:test`
+
+**To run the unit tests and save the results to a file:**
+`clj -M:test > test_results.txt`

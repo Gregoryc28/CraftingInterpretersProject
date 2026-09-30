@@ -19,3 +19,4 @@
 (defrecord Variable [name])
 (defrecord Assign [name value])
 (defrecord Logical [left operator right])
+(defrecord Call [callee paren arguments])

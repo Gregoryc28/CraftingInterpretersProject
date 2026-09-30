@@ -4,11 +4,25 @@
 ; Email: glcohen2@crimson.ua.edu
 ; CS503 - Dr. Yessick
 
-(ns lox.environment)
+(ns lox.environment
+    (:require [lox.callable :as callable]))
+
+;; Define the native clock function implementing LoxCallable inline
+(def native-clock
+  (reify
+    callable/LoxCallable
+    (arity [_] 0)
+    (call [_ _]
+          (/ (double (System/currentTimeMillis)) 1000.0))
+    Object
+    (toString [_] "<native fn>")))
+
+;; Store the default global scope bindings
+(def default-globals {"clock" native-clock})
 
 ;; Our environment chain is a list of atoms (each atom holding a map of variables).
-;; The front of the list is the innermost scope. The end of the list is the global scope.
-(def ^:dynamic *env-chain* (list (atom {})))
+;; Initialize the global scope with our native functions instead of an empty map.
+(def ^:dynamic *env-chain* (list (atom default-globals)))
 
 (defn define [name-str value]
       ;; Always define new variables in the innermost (first) scope

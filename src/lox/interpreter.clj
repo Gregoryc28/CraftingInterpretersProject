@@ -9,7 +9,8 @@
       [lox.stmt :as stmt]
       [lox.environment :as env]
       [lox.error :as err]
-      [clojure.string :as str]))
+      [clojure.string :as str]
+      [lox.callable :as callable]))
 
 ;; We use a multimethod dispatching on the type of the expression record.
 ; This cleanly maps operations to our AST nodes without the need for a Visitor interface.
@@ -197,3 +198,56 @@
                        (execute (:body stmt))
                        (recur)))
            nil)
+
+;; --- 10.1 Function Calls ---
+(defmethod evaluate lox.expr.Call [expr]
+           (let [callee (evaluate (:callee expr))
+                 arguments (mapv evaluate (:arguments expr))]
+                (if-not (satisfies? callable/LoxCallable callee)
+                        (throw (ex-info "Can only call functions and classes."
+                                        {:type :runtime-error :token (:paren expr)}))
+                        ; Check if the number of arguments matches the callable's arity. If not, throw a runtime error with the expected and actual argument counts.
+                        (let [expected-arity (callable/arity callee)]
+                             (if-not (= (count arguments) expected-arity)
+                                     (throw (ex-info (str "Expected " expected-arity " arguments but got " (count arguments) ".")
+                                                     {:type :runtime-error :token (:paren expr)}))
+                                     (callable/call callee arguments))))))
+
+;; --- 10.4 & 10.6 Function Objects with Closures ---
+(defrecord LoxFunction [declaration closure]
+           callable/LoxCallable
+           (arity [_]
+                  (count (:params declaration)))
+
+           (call [_ arguments]
+                 (let [bindings (zipmap (map :lexeme (:params declaration)) arguments)]
+                      ;; Push the parameter scope onto the captured closure chain (not globals!)
+                      (binding [env/*env-chain* (cons (atom bindings) closure)]
+                               (try
+                                 (doseq [statement (:body declaration)]
+                                        (execute statement))
+                                 nil ;; Implicit return nil if the end of the block is reached
+                                 (catch clojure.lang.ExceptionInfo e
+                                   (let [data (ex-data e)]
+                                        ;; Catch our custom control-flow exception
+                                        (if (= :return (:type data))
+                                          (:value data)
+                                          (throw e))))))))
+
+           Object
+           (toString [_]
+                     (str "<fn " (:lexeme (:name declaration)) ">")))
+
+(defmethod execute lox.stmt.Function [stmt]
+           ;; Capture the current environment chain as the closure
+           (let [function (->LoxFunction stmt env/*env-chain*)]
+                (env/define (:lexeme (:name stmt)) function)
+                nil))
+
+;; --- 10.5 Return Statement Execution ---
+(defmethod execute lox.stmt.Return [stmt]
+           (let [value (if (:value stmt)
+                         (evaluate (:value stmt))
+                         nil)]
+                ;; Throw an exception to unwind the stack out to the LoxFunction call
+                (throw (ex-info "Return" {:type :return :value value}))))

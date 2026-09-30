@@ -12,3 +12,5 @@
 (defrecord Block [statements])
 (defrecord If [condition then-branch else-branch])
 (defrecord While [condition body])
+(defrecord Function [name params body])
+(defrecord Return [keyword value])
