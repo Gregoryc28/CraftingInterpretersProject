@@ -56,3 +56,34 @@
 (defmacro with-new-environment [& body]
           `(binding [*env-chain* (cons (atom {}) *env-chain*)]
                     ~@body))
+
+;; --- 11.4 Environment Hooks ---
+
+(defn- ancestor [distance]
+       ;; Since our chain is a list where index 0 is the innermost scope,
+       ;; nth natively traverses the exact distance up the chain.
+       (nth *env-chain* distance))
+
+; Used by the resolver to retrieve a variable's value at a specific scope distance
+(defn get-var-at [distance name-str]
+      (get @(ancestor distance) name-str))
+
+(defn assign-at [distance name-str value]
+      (swap! (ancestor distance) assoc name-str value))
+
+(defn get-global [name-token]
+      (let [name-str (:lexeme name-token)
+            global-env (last *env-chain*)]
+           (if (contains? @global-env name-str)
+             (get @global-env name-str)
+             (throw (ex-info (str "Undefined variable '" name-str "'.")
+                             {:type :runtime-error :token name-token})))))
+
+; Assigns a value to a variable in the global scope, regardless of the current scope
+(defn assign-global [name-token value]
+      (let [name-str (:lexeme name-token)
+            global-env (last *env-chain*)]
+           (if (contains? @global-env name-str)
+             (swap! global-env assoc name-str value)
+             (throw (ex-info (str "Undefined variable '" name-str "'.")
+                             {:type :runtime-error :token name-token})))))

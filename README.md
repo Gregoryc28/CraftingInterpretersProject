@@ -2,7 +2,7 @@
 **Author:** Gregory Cohen (glcohen2@crimson.ua.edu)
 **Course:** CS503
 
-This project is a Clojure implementation of the Lox interpreter from *Crafting Interpreters*. This submission covers Chapter 10 (Functions).
+This project is a Clojure implementation of the Lox interpreter from *Crafting Interpreters*. This submission covers Chapter 11 (Resolving and Binding).
 
 ## Prerequisites & Installation
 This project is written in Clojure and uses `deps.edn`. You must have the Clojure CLI tools installed to execute the application and the test suite.

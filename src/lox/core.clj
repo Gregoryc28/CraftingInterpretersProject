@@ -14,18 +14,23 @@
       [lox.parser :as parser]
       [lox.ast-printer :as printer]
       [lox.error :as err]
-      [lox.interpreter :as interpreter]))
+      [lox.interpreter :as interpreter]
+      [lox.resolver :as resolver]))
 
 ;; Function to run Lox source code from a string
 (defn run [source]
-      ; Scan the source code into tokens, parse the tokens into an AST, and interpret the AST if no errors occurred.
       (let [tokens (scanner/scan-tokens source)
             ast (parser/parse tokens)]
-           ; Check if any errors occurred during scanning or parsing before interpreting the AST
            (when-not @err/had-error
                      (when ast
-                           ;; Replace the ast-printer call with our new interpreter
-                           (interpreter/interpret ast)))))
+                           ;; Clear the resolver state to prevent stale data between runs
+                           (reset! resolver/*scopes* ())
+                           (.clear ^java.util.IdentityHashMap @resolver/locals)
+                           (resolver/resolve-stmts ast)
+
+                           ;; Ensure no resolution errors occurred before interpreting
+                           (when-not @err/had-error
+                                     (interpreter/interpret ast))))))
 
 ; Function to run Lox source code from a file
 (defn run-file [path]

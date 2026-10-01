@@ -10,7 +10,8 @@
       [lox.environment :as env]
       [lox.error :as err]
       [clojure.string :as str]
-      [lox.callable :as callable]))
+      [lox.callable :as callable]
+      [lox.resolver :as resolver]))
 
 ;; We use a multimethod dispatching on the type of the expression record.
 ; This cleanly maps operations to our AST nodes without the need for a Visitor interface.
@@ -111,11 +112,6 @@
                 (env/define (:lexeme (:name stmt)) value))
            nil)
 
-;; --- Variable Evaluation ---
-
-(defmethod evaluate lox.expr.Variable [expr]
-           (env/get-var (:name expr)))
-
 ;; --- 7.4 Hooking Up the Interpreter ---
 
 ; Converts the evaluated value to a string for printing, handling nil and formatting numbers without unnecessary decimal points.
@@ -153,10 +149,22 @@
            (evaluate (:expression stmt))
            nil) ;; Explicitly return nil as statements don't yield values
 
-;; 8.4.2 Assignment Semantics
+;; --- 11.4 Interpreting Resolved Variables ---
+
+(defmethod evaluate lox.expr.Variable [expr]
+           ;; Use the exact AST record instance as the key in the IdentityHashMap
+           (let [distance (.get ^java.util.IdentityHashMap @resolver/locals expr)]
+                (if distance
+                  (env/get-var-at distance (:lexeme (:name expr)))
+                  (env/get-global (:name expr)))))
+
 (defmethod evaluate lox.expr.Assign [expr]
-           (let [value (evaluate (:value expr))]
-                (env/assign (:name expr) value)
+           (let [value (evaluate (:value expr))
+                 ; Determine if the variable is local or global based on the resolution distance stored in the IdentityHashMap
+                 distance (.get ^java.util.IdentityHashMap @resolver/locals expr)]
+                (if distance
+                  (env/assign-at distance (:lexeme (:name expr)) value)
+                  (env/assign-global (:name expr) value))
                 value))
 
 ;; 8.5.2 Block Syntax and Semantics

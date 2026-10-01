@@ -11,18 +11,24 @@
       [lox.parser :as parser]
       [lox.interpreter :as interpreter]
       [lox.environment :as env]
-      [lox.error :as err]))
+      [lox.error :as err]
+      [lox.resolver :as resolver]))
 
-;; --- Helper (Updated for Chapter 10 Native Functions) ---
+;; --- Helper (Updated for Chapter 11 Resolver) ---
 (defn- eval-to-string [source]
        (reset! err/had-error false)
        (reset! err/had-runtime-error false)
+       (reset! resolver/*scopes* ()) ;; <-- Add this to clear stale scopes!
+       (.clear ^java.util.IdentityHashMap @resolver/locals)
        (let [tokens (scanner/scan-tokens source)
              stmts (parser/parse tokens)]
             (if (and stmts (not @err/had-error))
-              ;; Bind a completely fresh environment chain seeded with default globals
-              (binding [env/*env-chain* (list (atom env/default-globals))]
-                       (clojure.string/trim (with-out-str (interpreter/interpret stmts))))
+              (do
+                (resolver/resolve-stmts stmts)
+                (if-not @err/had-error
+                        (binding [env/*env-chain* (list (atom env/default-globals))]
+                                 (clojure.string/trim (with-out-str (interpreter/interpret stmts))))
+                        nil))
               nil)))
 
 ;; --- Chapter 10 Tests ---
@@ -297,3 +303,22 @@
       print counter(); // 1
       print counter(); // 2"]
                        (is (= "1\n2" (eval-to-string source))))))
+
+;; --- Chapter 11 Tests ---
+
+(deftest test-closure-lexical-scoping
+         (testing "Closures capture variables from their lexical scope, not dynamic scope"
+                  (let [source "
+      var a = \"global\";
+      {
+        fun showA() {
+          print a;
+        }
+
+        showA();
+        var a = \"block\";
+        showA();
+      }"]
+                       ;; Without the resolver, the second showA() would incorrectly print "block".
+                       ;; With the resolver, it correctly binds to the global "a" both times.
+                       (is (= "global\nglobal" (eval-to-string source))))))
