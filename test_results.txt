@@ -3,9 +3,850 @@ Running tests in #{"test"}
 
 Testing lox.ast-printer-test
 
+==================================================
+Running Test: test-ast-printer
+
+--- AST Printer Input (Raw AST Nodes) ---
+#lox.expr.Binary{:left #lox.expr.Unary{:operator #lox.token.Token{:type :minus, :lexeme -, :literal nil, :line 1}, :right #lox.expr.Literal{:value 123}}, :operator #lox.token.Token{:type :star, :lexeme *, :literal nil, :line 1}, :right #lox.expr.Grouping{:expression #lox.expr.Literal{:value 45.67}}}
+--- AST Printer Output (Formatted String) ---
+(* (- 123) (group 45.67))
+-------------------------------------------
+  [✔ PASS] Assertion successful
+
 Testing lox.interpreter-test
 
+==================================================
+Running Test: test-scope-and-shadowing
+
+--- Lox Source Input ---
+var a = "global";
+      {
+        var a = "inner";
+        print a;
+      }
+      print a;
+--- Lox Console Output ---
+inner
+global
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+var a = "global";
+      {
+        a = "mutated";
+      }
+      print a;
+--- Lox Console Output ---
+mutated
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-print-statement
+
+--- Lox Source Input ---
+print 123;
+--- Lox Console Output ---
+123
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print true;
+--- Lox Console Output ---
+true
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-methods
+
+--- Lox Source Input ---
+class Bacon {
+        eat() {
+          print "Crunch crunch crunch!";
+        }
+      }
+      Bacon().eat();
+--- Lox Console Output ---
+Crunch crunch crunch!
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-unary-evaluation
+
+--- Lox Source Input ---
+print -5;
+--- Lox Console Output ---
+-5
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print !true;
+--- Lox Console Output ---
+false
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print !false;
+--- Lox Console Output ---
+true
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print !nil;
+--- Lox Console Output ---
+true
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print !123;
+--- Lox Console Output ---
+false
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print !"string";
+--- Lox Console Output ---
+false
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-properties
+
+--- Lox Source Input ---
+class Toast {}
+      var toast = Toast();
+      toast.jam = "grape";
+      print toast.jam;
+--- Lox Console Output ---
+grape
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-closures
+
+--- Lox Source Input ---
+fun makeCounter() {
+        var i = 0;
+        fun count() {
+          i = i + 1;
+          return i;
+        }
+        return count;
+      }
+      var counter = makeCounter();
+      print counter(); // 1
+      print counter(); // 2
+--- Lox Console Output ---
+1
+2
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-inheritance
+
+--- Lox Source Input ---
+class Doughnut {
+        cook() {
+          print "Fry until golden brown.";
+        }
+      }
+      class BostonCream < Doughnut {}
+      BostonCream().cook();
+--- Lox Console Output ---
+Fry until golden brown.
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+class Oops < Oops {}
+  [✔ PASS] Assertion successful
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+var NotClass = "I am text"; class Sub < NotClass {}
+--- Lox Console Output ---
+<no output>
+--------------------------
+  [✔ PASS] Assertion successful
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-runtime-errors
+
+--- Lox Source Input ---
+print -"muffin";
+--- Lox Console Output ---
+<no output>
+--------------------------
+  [✔ PASS] Assertion successful
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print 3 - "muffin";
+--- Lox Console Output ---
+<no output>
+--------------------------
+  [✔ PASS] Assertion successful
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print "string" + 5;
+--- Lox Console Output ---
+<no output>
+--------------------------
+  [✔ PASS] Assertion successful
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-literals
+
+--- Lox Source Input ---
+print 123;
+--- Lox Console Output ---
+123
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print 12.34;
+--- Lox Console Output ---
+12.34
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print true;
+--- Lox Console Output ---
+true
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print false;
+--- Lox Console Output ---
+false
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print nil;
+--- Lox Console Output ---
+nil
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print "hello";
+--- Lox Console Output ---
+hello
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-binary-arithmetic
+
+--- Lox Source Input ---
+print 2 + 3;
+--- Lox Console Output ---
+5
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print 15 - 5;
+--- Lox Console Output ---
+10
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print 6 * 4;
+--- Lox Console Output ---
+24
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print 12 / 3;
+--- Lox Console Output ---
+4
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print 5 / -2;
+--- Lox Console Output ---
+-2.5
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-call-runtime-errors
+
+--- Lox Source Input ---
+"not a function"();
+--- Lox Console Output ---
+<no output>
+--------------------------
+  [✔ PASS] Assertion successful
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+var a = 5; a();
+--- Lox Console Output ---
+<no output>
+--------------------------
+  [✔ PASS] Assertion successful
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-native-functions
+
+--- Lox Source Input ---
+print clock;
+--- Lox Console Output ---
+<native fn>
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print clock();
+--- Lox Console Output ---
+1.793076045154E9
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-grouping
+
+--- Lox Source Input ---
+print 2 * (3 + 4);
+--- Lox Console Output ---
+14
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-user-defined-functions
+
+--- Lox Source Input ---
+fun sayHi(first, last) {
+        print "Hi, " + first + " " + last + "!";
+      }
+      sayHi("Dear", "Reader");
+--- Lox Console Output ---
+Hi, Dear Reader!
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+fun testScope(a) {
+        print a;
+      }
+      testScope("local");
+      print a;
+--- Lox Console Output ---
+local
+--------------------------
+  [✔ PASS] Assertion successful
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-recursion
+
+--- Lox Source Input ---
+fun fib(n) {
+        if (n <= 1) return n;
+        return fib(n - 2) + fib(n - 1);
+      }
+      print fib(6);
+--- Lox Console Output ---
+8
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-this-and-constructors
+
+--- Lox Source Input ---
+class Cake {
+        taste() {
+          print "The " + this.flavor + " cake is " + this.adjective + "!";
+        }
+      }
+      var cake = Cake();
+      cake.flavor = "German chocolate";
+      cake.adjective = "delicious";
+      cake.taste();
+--- Lox Console Output ---
+The German chocolate cake is delicious!
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+class Point {
+        init(x, y) {
+          this.x = x;
+          this.y = y;
+        }
+      }
+      var p = Point(2, 3);
+      print p.x;
+      print p.y;
+--- Lox Console Output ---
+2
+3
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-super-calls
+
+--- Lox Source Input ---
+class A {
+        method() {
+          print "A method";
+        }
+      }
+      class B < A {
+        method() {
+          print "B method";
+          super.method();
+        }
+      }
+      class C < B {}
+      C().method();
+--- Lox Console Output ---
+B method
+A method
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-class-declaration-and-printing
+
+--- Lox Source Input ---
+class DevonshireCream {}
+      print DevonshireCream;
+--- Lox Console Output ---
+DevonshireCream
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-class-instantiation
+
+--- Lox Source Input ---
+class Bagel {}
+      var bagel = Bagel();
+      print bagel;
+--- Lox Console Output ---
+Bagel instance
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-logical-execution
+
+--- Lox Source Input ---
+print "hi" or 2;
+--- Lox Console Output ---
+hi
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print nil or "yes";
+--- Lox Console Output ---
+yes
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print true and "yes";
+--- Lox Console Output ---
+yes
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print false and "no";
+--- Lox Console Output ---
+false
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+var a = "before";
+      true or (a = "mutated");
+      print a;
+--- Lox Console Output ---
+before
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+var a = "before";
+      false and (a = "mutated");
+      print a;
+--- Lox Console Output ---
+before
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-variables-and-assignment
+
+--- Lox Source Input ---
+var a = 1;
+      print a;
+      a = 2;
+      print a;
+--- Lox Console Output ---
+1
+2
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+var a; print a;
+--- Lox Console Output ---
+nil
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-variable-runtime-errors
+
+--- Lox Source Input ---
+print a;
+--- Lox Console Output ---
+<no output>
+--------------------------
+  [✔ PASS] Assertion successful
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+a = 2;
+--- Lox Console Output ---
+<no output>
+--------------------------
+  [✔ PASS] Assertion successful
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-while-execution
+
+--- Lox Source Input ---
+var i = 0;
+      while (i < 3) {
+        print i;
+        i = i + 1;
+      }
+--- Lox Console Output ---
+0
+1
+2
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-comparisons-and-equality
+
+--- Lox Source Input ---
+print 5 > 3;
+--- Lox Console Output ---
+true
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print 5 < 3;
+--- Lox Console Output ---
+false
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print 5 >= 5;
+--- Lox Console Output ---
+true
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print 3 <= 5;
+--- Lox Console Output ---
+true
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print 5 == 5;
+--- Lox Console Output ---
+true
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print 5 != 5;
+--- Lox Console Output ---
+false
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print 5 == "5";
+--- Lox Console Output ---
+false
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print nil == nil;
+--- Lox Console Output ---
+true
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-if-execution
+
+--- Lox Source Input ---
+if (true) print 1; else print 2;
+--- Lox Console Output ---
+1
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+if (false) print 1; else print 2;
+--- Lox Console Output ---
+2
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+if (true) print 1;
+--- Lox Console Output ---
+1
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+if (false) print 1;
+--- Lox Console Output ---
+<no output>
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-string-concatenation
+
+--- Lox Source Input ---
+print "hello" + "world";
+--- Lox Console Output ---
+helloworld
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+print "123" + "456";
+--- Lox Console Output ---
+123456
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-returns
+
+--- Lox Source Input ---
+fun returnIt() {
+        return 5;
+        print "never reached";
+      }
+      print returnIt();
+--- Lox Console Output ---
+5
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+fun empty() {}
+      print empty();
+--- Lox Console Output ---
+nil
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-closure-lexical-scoping
+
+--- Lox Source Input ---
+var a = "global";
+      {
+        fun showA() {
+          print a;
+        }
+
+        showA();
+        var a = "block";
+        showA();
+      }
+--- Lox Console Output ---
+global
+global
+--------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: test-for-execution
+
+--- Lox Source Input ---
+for (var i = 0; i < 3; i = i + 1) {
+        print i;
+      }
+--- Lox Console Output ---
+0
+1
+2
+--------------------------
+  [✔ PASS] Assertion successful
+
+--- Lox Source Input ---
+var i = 0;
+      for (; i < 2;) {
+        print i;
+        i = i + 1;
+      }
+--- Lox Console Output ---
+0
+1
+--------------------------
+  [✔ PASS] Assertion successful
+
 Testing lox.scanner-test
+
+==================================================
+Running Test: single-character-tokens
+
+--- Scanner Source Input ---
+(){},.-+;*
+--- Scanner Tokens Output ---
+#lox.token.Token{:type :left-paren, :lexeme (, :literal nil, :line 1}
+#lox.token.Token{:type :right-paren, :lexeme ), :literal nil, :line 1}
+#lox.token.Token{:type :left-brace, :lexeme {, :literal nil, :line 1}
+#lox.token.Token{:type :right-brace, :lexeme }, :literal nil, :line 1}
+#lox.token.Token{:type :comma, :lexeme ,, :literal nil, :line 1}
+#lox.token.Token{:type :dot, :lexeme ., :literal nil, :line 1}
+#lox.token.Token{:type :minus, :lexeme -, :literal nil, :line 1}
+#lox.token.Token{:type :plus, :lexeme +, :literal nil, :line 1}
+#lox.token.Token{:type :semicolon, :lexeme ;, :literal nil, :line 1}
+#lox.token.Token{:type :star, :lexeme *, :literal nil, :line 1}
+#lox.token.Token{:type :eof, :lexeme , :literal nil, :line 1}
+-----------------------------
+  [✔ PASS] Assertion successful
+  [✔ PASS] Assertion successful
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: identifiers-and-keywords
+
+--- Scanner Source Input ---
+var orchid = 1; if (true) {}
+--- Scanner Tokens Output ---
+#lox.token.Token{:type :var, :lexeme var, :literal nil, :line 1}
+#lox.token.Token{:type :identifier, :lexeme orchid, :literal nil, :line 1}
+#lox.token.Token{:type :equal, :lexeme =, :literal nil, :line 1}
+#lox.token.Token{:type :number, :lexeme 1, :literal 1.0, :line 1}
+#lox.token.Token{:type :semicolon, :lexeme ;, :literal nil, :line 1}
+#lox.token.Token{:type :if, :lexeme if, :literal nil, :line 1}
+#lox.token.Token{:type :left-paren, :lexeme (, :literal nil, :line 1}
+#lox.token.Token{:type :true, :lexeme true, :literal nil, :line 1}
+#lox.token.Token{:type :right-paren, :lexeme ), :literal nil, :line 1}
+#lox.token.Token{:type :left-brace, :lexeme {, :literal nil, :line 1}
+#lox.token.Token{:type :right-brace, :lexeme }, :literal nil, :line 1}
+#lox.token.Token{:type :eof, :lexeme , :literal nil, :line 1}
+-----------------------------
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: comments-and-whitespace
+
+--- Scanner Source Input ---
+// this is a comment
+var a = 1;
+--- Scanner Tokens Output ---
+#lox.token.Token{:type :var, :lexeme var, :literal nil, :line 2}
+#lox.token.Token{:type :identifier, :lexeme a, :literal nil, :line 2}
+#lox.token.Token{:type :equal, :lexeme =, :literal nil, :line 2}
+#lox.token.Token{:type :number, :lexeme 1, :literal 1.0, :line 2}
+#lox.token.Token{:type :semicolon, :lexeme ;, :literal nil, :line 2}
+#lox.token.Token{:type :eof, :lexeme , :literal nil, :line 2}
+-----------------------------
+  [✔ PASS] Assertion successful
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: string-literals
+
+--- Scanner Source Input ---
+"hello world"
+"multi
+line"
+--- Scanner Tokens Output ---
+#lox.token.Token{:type :string, :lexeme "hello world", :literal hello world, :line 1}
+#lox.token.Token{:type :string, :lexeme "multi
+line", :literal multi
+line, :line 3}
+#lox.token.Token{:type :eof, :lexeme , :literal nil, :line 3}
+-----------------------------
+  [✔ PASS] Assertion successful
+  [✔ PASS] Assertion successful
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: number-literals
+
+--- Scanner Source Input ---
+123 12.34
+--- Scanner Tokens Output ---
+#lox.token.Token{:type :number, :lexeme 123, :literal 123.0, :line 1}
+#lox.token.Token{:type :number, :lexeme 12.34, :literal 12.34, :line 1}
+#lox.token.Token{:type :eof, :lexeme , :literal nil, :line 1}
+-----------------------------
+  [✔ PASS] Assertion successful
+  [✔ PASS] Assertion successful
+
+==================================================
+Running Test: two-character-operators
+
+--- Scanner Source Input ---
+! != = == < <= > >=
+--- Scanner Tokens Output ---
+#lox.token.Token{:type :bang, :lexeme !, :literal nil, :line 1}
+#lox.token.Token{:type :bang-equal, :lexeme !=, :literal nil, :line 1}
+#lox.token.Token{:type :equal, :lexeme =, :literal nil, :line 1}
+#lox.token.Token{:type :equal-equal, :lexeme ==, :literal nil, :line 1}
+#lox.token.Token{:type :less, :lexeme <, :literal nil, :line 1}
+#lox.token.Token{:type :less-equal, :lexeme <=, :literal nil, :line 1}
+#lox.token.Token{:type :greater, :lexeme >, :literal nil, :line 1}
+#lox.token.Token{:type :greater-equal, :lexeme >=, :literal nil, :line 1}
+#lox.token.Token{:type :eof, :lexeme , :literal nil, :line 1}
+-----------------------------
+  [✔ PASS] Assertion successful
 
 Ran 36 tests containing 96 assertions.
 0 failures, 0 errors.

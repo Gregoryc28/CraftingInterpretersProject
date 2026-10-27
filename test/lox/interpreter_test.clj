@@ -18,16 +18,28 @@
 (defn- eval-to-string [source]
        (reset! err/had-error false)
        (reset! err/had-runtime-error false)
-       (reset! resolver/*scopes* ()) ;; <-- Add this to clear stale scopes!
+       (reset! resolver/*scopes* ())
        (.clear ^java.util.IdentityHashMap @resolver/locals)
+
+       ;; Print the input source code for the TA's log
+       (println "\n--- Lox Source Input ---")
+       (println (clojure.string/trim source))
+
        (let [tokens (scanner/scan-tokens source)
              stmts (parser/parse tokens)]
             (if (and stmts (not @err/had-error))
               (do
                 (resolver/resolve-stmts stmts)
                 (if-not @err/had-error
-                        (binding [env/*env-chain* (list (atom env/default-globals))]
-                                 (clojure.string/trim (with-out-str (interpreter/interpret stmts))))
+                        (let [result (binding [env/*env-chain* (list (atom env/default-globals))]
+                                              (clojure.string/trim (with-out-str (interpreter/interpret stmts))))]
+
+                             ;; Print the evaluated output for the TA's log
+                             (println "--- Lox Console Output ---")
+                             (println (if (= result "") "<no output>" result))
+                             (println "--------------------------")
+
+                             result)
                         nil))
               nil)))
 

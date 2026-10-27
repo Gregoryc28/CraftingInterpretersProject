@@ -2,7 +2,36 @@
 **Author:** Gregory Cohen (glcohen2@crimson.ua.edu)
 **Course:** CS503
 
-This project is a Clojure implementation of the Lox interpreter from *Crafting Interpreters*. This submission covers Chapter 11 (Resolving and Binding).
+This project is a Clojure implementation of the Lox interpreter from *Crafting Interpreters*. This submission covers up to Chapter 13 (Inheritance), completing the core language interpreter.
+
+## Directory Structure
+```text
+.
+├── deps.edn                    # Clojure dependencies and test aliases
+├── PROJECT_REQUIREMENTS.md     # Project constraints and guidelines
+├── README.md                   # Project documentation
+├── src/
+│   └── lox/                    # Main source code for the Lox interpreter
+│       ├── ast_printer.clj     # AST visualization
+│       ├── callable.clj        # LoxCallable protocol definition
+│       ├── core.clj            # Main entry point and REPL
+│       ├── environment.clj     # Lexical environment and scope chain
+│       ├── error.clj           # Error handling and reporting
+│       ├── expr.clj            # Expression AST node records
+│       ├── interpreter.clj     # Core tree-walk interpreter logic
+│       ├── parser.clj          # Recursive descent parser
+│       ├── resolver.clj        # Static analysis and variable resolution
+│       ├── scanner.clj         # Lexical scanner / tokenizer
+│       ├── stmt.clj            # Statement AST node records
+│       └── token.clj           # Token record definitions
+└── test/
+    └── lox/                    # Unit testing suite
+        ├── a_reporter_test.clj # Custom verbose test reporter
+        ├── ast_printer_test.clj
+        ├── interpreter_test.clj
+        ├── parser_test.clj
+        └── scanner_test.clj
+```
 
 ## Prerequisites & Installation
 This project is written in Clojure and uses `deps.edn`. You must have the Clojure CLI tools installed to execute the application and the test suite.

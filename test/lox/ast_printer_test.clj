@@ -17,6 +17,14 @@
                                      (expr/->Unary (token/->Token :minus "-" nil 1)
                                                    (expr/->Literal 123))
                                      (token/->Token :star "*" nil 1)
-                                     (expr/->Grouping (expr/->Literal 45.67)))]
+                                     (expr/->Grouping (expr/->Literal 45.67)))
+                        result (print-ast expression)]
+
+                       (println "\n--- AST Printer Input (Raw AST Nodes) ---")
+                       (println expression)
+                       (println "--- AST Printer Output (Formatted String) ---")
+                       (println result)
+                       (println "-------------------------------------------")
+
                        ;; Validating it matches the expected Lisp-style string output
-                       (is (= "(* (- 123) (group 45.67))" (print-ast expression))))))
+                       (is (= "(* (- 123) (group 45.67))" result)))))

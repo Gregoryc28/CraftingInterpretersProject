@@ -14,8 +14,15 @@
 
 ;; Helper to go straight from source to a list of parsed statements
 (defn- parse-code [source]
-       (let [tokens (scanner/scan-tokens source)]
-            (parser/parse tokens)))
+       (println "\n--- Parser Source Input ---")
+       (println (clojure.string/trim source))
+       (let [tokens (scanner/scan-tokens source)
+             stmts (parser/parse tokens)]
+            (println "--- Parser AST Output ---")
+            (doseq [stmt stmts]
+                   (println stmt))
+            (println "-------------------------")
+            stmts))
 
 (deftest test-statement-parsing
          (testing "Parses print and expression statements"
