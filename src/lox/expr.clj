@@ -20,3 +20,6 @@
 (defrecord Assign [name value])
 (defrecord Logical [left operator right])
 (defrecord Call [callee paren arguments])
+(defrecord Get [object name])
+(defrecord Set [object name value])
+(defrecord This [keyword])

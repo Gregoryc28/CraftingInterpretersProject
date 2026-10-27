@@ -112,19 +112,23 @@
                              (recur (expr/->Logical expr operator right) final-toks))
                         [expr toks])))))
 
-;; assignment -> IDENTIFIER "=" assignment | logic_or ;
+;; assignment -> ( call "." )? IDENTIFIER "=" assignment | logic_or ;
 (defn parse-assignment [tokens]
-      ;; This now calls parse-or instead of parse-equality
       (let [[expr remaining] (parse-or tokens)
             [eq-tok next-toks] (match remaining :equal)]
            (if eq-tok
-             ; If we found an '=', parse the right-hand side recursively (right-associative)
              (let [[value final-toks] (parse-assignment next-toks)]
-                  (if (= (type expr) lox.expr.Variable)
-                    ; If the left-hand side is a variable, create an assignment expression
+                  (cond
+                    ;; Standard variable assignment
+                    (= (type expr) lox.expr.Variable)
                     [(expr/->Assign (:name expr) value) final-toks]
+
+                    ;; Property assignment (converting a Get to a Set)
+                    (= (type expr) lox.expr.Get)
+                    [(expr/->Set (:object expr) (:name expr) value) final-toks]
+
+                    :else
                     (parse-error eq-tok "Invalid assignment target.")))
-             ; If there's no '=', just return the logic_or expression
              [expr remaining])))
 
 ;; expression -> assignment ;
@@ -134,10 +138,9 @@
 
 ;; --- Grammar Rules ---
 
-;; primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER ;
+;; primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER | "this" ;
 (defn parse-primary [tokens]
-      ;; Add :identifier to the match list
-      (let [[matched next-tokens] (match tokens :false :true :nil :number :string :identifier)]
+      (let [[matched next-tokens] (match tokens :false :true :nil :number :string :identifier :this)]
            (cond
              matched
              (let [expr-node (case (:type matched)
@@ -145,22 +148,19 @@
                                    :true  (expr/->Literal true)
                                    :nil   (expr/->Literal nil)
                                    (:number :string) (expr/->Literal (:literal matched))
-                                   ;; Map the identifier token directly to our new Variable record
-                                   :identifier (expr/->Variable matched))]
+                                   :identifier (expr/->Variable matched)
+                                   :this (expr/->This matched))]
                   [expr-node next-tokens])
 
-             ; If the current token is a left parenthesis, we parse a grouped expression.
              (check? tokens :left-paren)
              (let [next-tokens (rest tokens)
                    [expr after-expr-tokens] (parse-expression next-tokens)
                    [r-paren final-tokens] (match after-expr-tokens :right-paren)]
                   (if r-paren
                     [(expr/->Grouping expr) final-tokens]
-                    ;; Throw error instead of returning nil
                     (parse-error (peek-token after-expr-tokens) "Expect ')' after expression.")))
 
              :else
-             ;; Throw error instead of returning nil
              (parse-error (peek-token tokens) "Expect expression."))))
 
 ; Used to parse expressions, which are currently limited to assignment and logical expressions.
@@ -187,16 +187,25 @@
 
 ; Update parse-call to handle function calls:
 (defn parse-call [tokens]
-      ; Parse a primary expression first, which could be a variable, literal, or grouped expression. Then check for function call syntax (parentheses) and handle arguments.
       (let [[expr remaining] (parse-primary tokens)]
            (loop [callee expr
                   toks remaining]
-                 (let [[l-paren next-toks] (match toks :left-paren)]
-                      (if l-paren
-                        ; If we find a left parenthesis, we parse the function call and its arguments using finish-call.
-                        (let [[new-callee final-toks] (finish-call callee next-toks)]
+                 (let [[l-paren next-toks-l] (match toks :left-paren)
+                       [dot next-toks-d] (match toks :dot)]
+                      (cond
+                        ;; Handle function calls: func()
+                        l-paren
+                        (let [[new-callee final-toks] (finish-call callee next-toks-l)]
                              (recur new-callee final-toks))
-                        [callee toks])))))
+
+                        ;; Handle property access: object.property
+                        dot
+                        (let [[name-tok final-toks] (match next-toks-d :identifier)]
+                             (if name-tok
+                               (recur (expr/->Get callee name-tok) final-toks)
+                               (parse-error (peek-token next-toks-d) "Expect property name after '.'.")))
+
+                        :else [callee toks])))))
 
 ; Update parse-unary to point to parse-call:
 (defn parse-unary [tokens]
@@ -431,14 +440,36 @@
                                 (parse-error (peek-token toks-after-init) "Expect ';' after variable declaration.")
                                 [(stmt/->Var name-tok initializer) final-toks])))))
 
+;; classDecl -> "class" IDENTIFIER "{" function* "}" ;
+(defn parse-class-declaration [tokens]
+      (let [[name-tok toks1] (match tokens :identifier)]
+           (if-not name-tok
+                   (parse-error (peek-token tokens) "Expect class name.")
+                   (let [[l-brace toks2] (match toks1 :left-brace)]
+                        (if-not l-brace
+                                (parse-error (peek-token toks1) "Expect '{' before class body.")
+                                (loop [toks toks2
+                                       methods []]
+                                      (cond
+                                        (is-at-end? toks) (parse-error (peek-token toks) "Expect '}' after class body.")
+
+                                        (= :right-brace (:type (peek-token toks)))
+                                        [(stmt/->ClassDecl name-tok methods) (rest toks)]
+
+                                        :else
+                                        (let [[method next-toks] (parse-function "method" toks)]
+                                             (recur next-toks (conj methods method))))))))))
+
 ; Declares a variable if the current token is 'var', otherwise it parses a statement.
 ; It also handles parse errors by synchronizing the parser state.
 ; Update parse-declaration to look for the 'fun' keyword:
 (defn parse-declaration [tokens]
       (try
-        (let [[fun-tok toks-after-fun] (match tokens :fun)
+        (let [[class-tok toks-after-class] (match tokens :class)
+              [fun-tok toks-after-fun] (match tokens :fun)
               [var-tok toks-after-var] (match tokens :var)]
              (cond
+               class-tok (parse-class-declaration toks-after-class)
                fun-tok (parse-function "function" toks-after-fun)
                var-tok (parse-var-declaration toks-after-var)
                :else (parse-statement tokens)))

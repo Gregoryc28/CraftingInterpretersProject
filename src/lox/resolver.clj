@@ -18,6 +18,8 @@
 ;; We use an IdentityHashMap to track resolution distances by the specific 
 ;; object instance of the expression, mirroring the Java Map<Expr, Integer>.
 (def locals (atom (IdentityHashMap.)))
+(def ^:dynamic *current-class* :none)
+(def ^:dynamic *current-function* :none)
 
 ;; We use a multimethod dispatching on the AST node type.
 (defmulti resolve-node type)
@@ -101,18 +103,56 @@
 
 ;; --- 11.3 Resolving Functions ---
 
-(defn- resolve-function [function-stmt]
-       (begin-scope)
-       (doseq [param (:params function-stmt)]
-              (declare-var param)
-              (define-var param))
-       (resolve-stmts (:body function-stmt))
-       (end-scope))
+(defn- resolve-function [function-stmt func-type]
+       (let [enclosing-function *current-function*]
+            (binding [*current-function* func-type]
+                     (begin-scope)
+                     (doseq [param (:params function-stmt)]
+                            (declare-var param)
+                            (define-var param))
+                     (resolve-stmts (:body function-stmt))
+                     (end-scope))))
 
 (defmethod resolve-node lox.stmt.Function [stmt]
            (declare-var (:name stmt))
            (define-var (:name stmt))
-           (resolve-function stmt)
+           (resolve-function stmt :function)
+           nil)
+
+(defmethod resolve-node lox.stmt.ClassDecl [stmt]
+           (let [enclosing-class *current-class*]
+                (binding [*current-class* :class]
+                         (declare-var (:name stmt))
+                         (define-var (:name stmt))
+
+                         ;; Create a scope specifically for 'this'
+                         (begin-scope)
+                         (swap! *scopes* (fn [scopes]
+                                             (cons (assoc (first scopes) "this" true)
+                                                   (rest scopes))))
+
+                         (doseq [method (:methods stmt)]
+                                (let [declaration (if (= "init" (:lexeme (:name method)))
+                                                    :initializer
+                                                    :method)]
+                                     (resolve-function method declaration)))
+
+                         (end-scope)
+                         nil)))
+
+(defmethod resolve-node lox.stmt.Return [stmt]
+           (when (= *current-function* :none)
+                 (err/error (:line (:keyword stmt)) "Can't return from top-level code."))
+           (when (:value stmt)
+                 (if (= *current-function* :initializer)
+                   (err/error (:line (:keyword stmt)) "Can't return a value from an initializer.")
+                   (resolve-node (:value stmt))))
+           nil)
+
+(defmethod resolve-node lox.expr.This [expr]
+           (if (= *current-class* :none)
+             (err/error (:line (:keyword expr)) "Can't use 'this' outside of a class.")
+             (resolve-local expr (:keyword expr)))
            nil)
 
 ;; --- 11.3 Resolving Other Syntax Nodes ---
@@ -131,11 +171,6 @@
 
 (defmethod resolve-node lox.stmt.Print [stmt]
            (resolve-node (:expression stmt))
-           nil)
-
-(defmethod resolve-node lox.stmt.Return [stmt]
-           (when (:value stmt)
-                 (resolve-node (:value stmt)))
            nil)
 
 (defmethod resolve-node lox.stmt.While [stmt]
@@ -168,4 +203,13 @@
 
 (defmethod resolve-node lox.expr.Unary [expr]
            (resolve-node (:right expr))
+           nil)
+
+(defmethod resolve-node lox.expr.Get [expr]
+           (resolve-node (:object expr))
+           nil)
+
+(defmethod resolve-node lox.expr.Set [expr]
+           (resolve-node (:value expr))
+           (resolve-node (:object expr))
            nil)

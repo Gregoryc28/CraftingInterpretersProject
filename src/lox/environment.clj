@@ -87,3 +87,9 @@
              (swap! global-env assoc name-str value)
              (throw (ex-info (str "Undefined variable '" name-str "'.")
                              {:type :runtime-error :token name-token})))))
+
+(defn get-var-at
+      ([distance name-str]
+       (get-var-at distance name-str *env-chain*))
+      ([distance name-str chain]
+       (get @(nth chain distance) name-str)))

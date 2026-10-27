@@ -117,3 +117,15 @@
                             (is (= "add" (:lexeme (:name func-node))))
                             (is (= ["a" "b"] (map :lexeme (:params func-node))))
                             (is (= 1 (count (:body func-node))))))))
+
+(deftest test-class-declaration
+         (testing "Parses a class declaration with methods"
+                  (let [stmts (parse-code "class DevonshireCream { serveOn() { return \"Scones\"; } }")]
+                       (is (= 1 (count stmts)))
+                       (let [class-node (first stmts)]
+                            (is (= lox.stmt.ClassDecl (type class-node)))
+                            (is (= "DevonshireCream" (:lexeme (:name class-node))))
+                            (is (= 1 (count (:methods class-node))))
+                            (let [method-node (first (:methods class-node))]
+                                 (is (= lox.stmt.Function (type method-node)))
+                                 (is (= "serveOn" (:lexeme (:name method-node)))))))))

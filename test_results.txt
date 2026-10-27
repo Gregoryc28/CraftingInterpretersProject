@@ -7,5 +7,5 @@ Testing lox.interpreter-test
 
 Testing lox.scanner-test
 
-Ran 29 tests containing 84 assertions.
+Ran 34 tests containing 90 assertions.
 0 failures, 0 errors.

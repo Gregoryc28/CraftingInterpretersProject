@@ -322,3 +322,67 @@
                        ;; Without the resolver, the second showA() would incorrectly print "block".
                        ;; With the resolver, it correctly binds to the global "a" both times.
                        (is (= "global\nglobal" (eval-to-string source))))))
+
+;; --- Chapter 12 Tests ---
+
+(deftest test-class-declaration-and-printing
+         (testing "Declares a class and prints its runtime representation"
+                  (let [source "
+      class DevonshireCream {}
+      print DevonshireCream;"]
+                       (is (= "DevonshireCream" (eval-to-string source))))))
+
+(deftest test-class-instantiation
+         (testing "Can instantiate a class and print the instance"
+                  (let [source "
+      class Bagel {}
+      var bagel = Bagel();
+      print bagel;"]
+                       (is (= "Bagel instance" (eval-to-string source))))))
+
+(deftest test-properties
+         (testing "Can get and set properties on instances"
+                  (let [source "
+      class Toast {}
+      var toast = Toast();
+      toast.jam = \"grape\";
+      print toast.jam;"]
+                       (is (= "grape" (eval-to-string source))))))
+
+(deftest test-methods
+         (testing "Can call methods on a class instance"
+                  (let [source "
+      class Bacon {
+        eat() {
+          print \"Crunch crunch crunch!\";
+        }
+      }
+      Bacon().eat();"]
+                       (is (= "Crunch crunch crunch!" (eval-to-string source))))))
+
+(deftest test-this-and-constructors
+         (testing "Methods can use 'this' to access instance fields"
+                  (let [source "
+      class Cake {
+        taste() {
+          print \"The \" + this.flavor + \" cake is \" + this.adjective + \"!\";
+        }
+      }
+      var cake = Cake();
+      cake.flavor = \"German chocolate\";
+      cake.adjective = \"delicious\";
+      cake.taste();"]
+                       (is (= "The German chocolate cake is delicious!" (eval-to-string source)))))
+
+         (testing "Constructors initialize fields correctly"
+                  (let [source "
+      class Point {
+        init(x, y) {
+          this.x = x;
+          this.y = y;
+        }
+      }
+      var p = Point(2, 3);
+      print p.x;
+      print p.y;"]
+                       (is (= "2\n3" (eval-to-string source))))))

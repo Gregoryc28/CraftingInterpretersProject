@@ -247,8 +247,8 @@
                      (str "<fn " (:lexeme (:name declaration)) ">")))
 
 (defmethod execute lox.stmt.Function [stmt]
-           ;; Capture the current environment chain as the closure
-           (let [function (->LoxFunction stmt env/*env-chain*)]
+           ;; Pass 'false' for the is-initializer flag
+           (let [function (->LoxFunction stmt env/*env-chain* false)]
                 (env/define (:lexeme (:name stmt)) function)
                 nil))
 
@@ -259,3 +259,112 @@
                          nil)]
                 ;; Throw an exception to unwind the stack out to the LoxFunction call
                 (throw (ex-info "Return" {:type :return :value value}))))
+
+(defn bind-method [method instance]
+      ;; Creates a new environment wrapping the method's closure that binds "this" to the instance
+      (let [closure (:closure method)
+            bound-env (cons (atom {"this" instance}) closure)]
+           ;; Note: This requires LoxFunction to accept a third parameter for initialization tracking,
+           ;; but we'll handle that via an assoc on the record or replacing it entirely.
+           (assoc method :closure bound-env)))
+
+;; 1. Define LoxInstance first so its constructor is available
+(defrecord LoxInstance [klass fields]
+           Object
+           (toString [_]
+                     (str (:name klass) " instance")))
+
+;; --- 12.2 & 12.3 & 12.4 Instances, Properties, and Methods ---
+;; --- 10.4 & 10.6 & 12.6 Function Objects & Constructors ---
+(defrecord LoxFunction [declaration closure is-initializer]
+           callable/LoxCallable
+           (arity [_]
+                  (count (:params declaration)))
+
+           (call [this arguments]
+                 (let [bindings (zipmap (map :lexeme (:params declaration)) arguments)]
+                      (binding [env/*env-chain* (cons (atom bindings) closure)]
+                               (try
+                                 (doseq [statement (:body declaration)]
+                                        (execute statement))
+                                 ;; If it's an initializer, always return 'this' (found at closure scope level 0)
+                                 (if is-initializer
+                                   (env/get-var-at 0 "this" closure)
+                                   nil)
+                                 (catch clojure.lang.ExceptionInfo e
+                                   (let [data (ex-data e)]
+                                        (if (= :return (:type data))
+                                          (if is-initializer
+                                            (env/get-var-at 0 "this" closure)
+                                            (:value data))
+                                          (throw e))))))))
+
+           Object
+           (toString [_]
+                     (str "<fn " (:lexeme (:name declaration)) ">")))
+
+(defn find-method [klass name-str]
+      (get (:methods klass) name-str))
+
+(defrecord LoxClass [name methods]
+           callable/LoxCallable
+           (arity [this]
+                  (let [initializer (find-method this "init")]
+                       (if initializer
+                         (callable/arity initializer)
+                         0)))
+           (call [this arguments]
+                 (let [instance (->LoxInstance this (atom {}))
+                       initializer (find-method this "init")]
+                      (when initializer
+                            (callable/call (bind-method initializer instance) arguments))
+                      instance))
+
+           Object
+           (toString [_] name))
+
+(defmethod execute lox.stmt.ClassDecl [stmt]
+           (env/define (:lexeme (:name stmt)) nil)
+           (let [methods (reduce (fn [acc method-stmt]
+                                     (let [is-init (= "init" (:lexeme (:name method-stmt)))]
+                                          (assoc acc (:lexeme (:name method-stmt))
+                                                 ;; Pass the is-init flag as the third argument
+                                                 (->LoxFunction method-stmt env/*env-chain* is-init))))
+                                 {}
+                                 (:methods stmt))
+                 klass (->LoxClass (:lexeme (:name stmt)) methods)]
+                (env/assign (:name stmt) klass)
+                nil))
+
+(defmethod evaluate lox.expr.Get [expr]
+           (let [object (evaluate (:object expr))]
+                (if (instance? lox.interpreter.LoxInstance object)
+                  (let [name-str (:lexeme (:name expr))
+                        fields @(:fields object)]
+                       (if (contains? fields name-str)
+                         (get fields name-str)
+                         (let [method (find-method (:klass object) name-str)]
+                              (if method
+                                (bind-method method object) ;; Bind 'this' to the method here!
+                                (throw (ex-info (str "Undefined property '" name-str "'.")
+                                                {:type :runtime-error :token (:name expr)}))))))
+                  (throw (ex-info "Only instances have properties."
+                                  {:type :runtime-error :token (:name expr)})))))
+
+(defmethod evaluate lox.expr.This [expr]
+           (let [distance (.get ^java.util.IdentityHashMap @resolver/locals expr)]
+                (if distance
+                  ;; We need a specialized get-var-at that can take an explicit chain if needed,
+                  ;; or we just rely on env/get-var-at which uses *env-chain*.
+                  (env/get-var-at distance (:lexeme (:keyword expr)))
+                  (env/get-global (:keyword expr)))))
+
+(defmethod evaluate lox.expr.Set [expr]
+           (let [object (evaluate (:object expr))]
+                (if (instance? lox.interpreter.LoxInstance object)
+                  (let [value (evaluate (:value expr))
+                        name-str (:lexeme (:name expr))]
+                       (swap! (:fields object) assoc name-str value)
+                       value)
+                  (throw (ex-info "Only instances have fields."
+                                  {:type :runtime-error :token (:name expr)})))))
