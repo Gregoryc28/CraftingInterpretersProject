@@ -138,19 +138,28 @@
 
 ;; --- Grammar Rules ---
 
-;; primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER | "this" ;
+;; primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER | "this" | "super" "." IDENTIFIER ;
 (defn parse-primary [tokens]
-      (let [[matched next-tokens] (match tokens :false :true :nil :number :string :identifier :this)]
+      (let [[matched next-tokens] (match tokens :false :true :nil :number :string :identifier :this :super)]
            (cond
              matched
-             (let [expr-node (case (:type matched)
-                                   :false (expr/->Literal false)
-                                   :true  (expr/->Literal true)
-                                   :nil   (expr/->Literal nil)
-                                   (:number :string) (expr/->Literal (:literal matched))
-                                   :identifier (expr/->Variable matched)
-                                   :this (expr/->This matched))]
-                  [expr-node next-tokens])
+             (case (:type matched)
+                   :false [(expr/->Literal false) next-tokens]
+                   :true  [(expr/->Literal true) next-tokens]
+                   :nil   [(expr/->Literal nil) next-tokens]
+                   (:number :string) [(expr/->Literal (:literal matched)) next-tokens]
+                   :identifier [(expr/->Variable matched) next-tokens]
+                   :this [(expr/->This matched) next-tokens]
+
+                   ;; 13.2 Parse 'super' calls
+                   :super
+                   (let [[dot next-toks-d] (match next-tokens :dot)]
+                        (if-not dot
+                                (parse-error (peek-token next-tokens) "Expect '.' after 'super'.")
+                                (let [[method final-toks] (match next-toks-d :identifier)]
+                                     (if-not method
+                                             (parse-error (peek-token next-toks-d) "Expect superclass method name.")
+                                             [(expr/->Super matched method) final-toks])))))
 
              (check? tokens :left-paren)
              (let [next-tokens (rest tokens)
@@ -440,21 +449,29 @@
                                 (parse-error (peek-token toks-after-init) "Expect ';' after variable declaration.")
                                 [(stmt/->Var name-tok initializer) final-toks])))))
 
-;; classDecl -> "class" IDENTIFIER "{" function* "}" ;
+;; classDecl -> "class" IDENTIFIER ( "<" IDENTIFIER )? "{" function* "}" ;
 (defn parse-class-declaration [tokens]
       (let [[name-tok toks1] (match tokens :identifier)]
            (if-not name-tok
                    (parse-error (peek-token tokens) "Expect class name.")
-                   (let [[l-brace toks2] (match toks1 :left-brace)]
+                   (let [[less-tok toks2] (match toks1 :less)
+                         ;; If there's a '<', parse the superclass name
+                         [superclass toks3] (if less-tok
+                                              (let [[super-name next-toks] (match toks2 :identifier)]
+                                                   (if super-name
+                                                     [(expr/->Variable super-name) next-toks]
+                                                     (parse-error (peek-token toks2) "Expect superclass name.")))
+                                              [nil toks1])
+                         [l-brace toks4] (match toks3 :left-brace)]
                         (if-not l-brace
-                                (parse-error (peek-token toks1) "Expect '{' before class body.")
-                                (loop [toks toks2
+                                (parse-error (peek-token toks3) "Expect '{' before class body.")
+                                (loop [toks toks4
                                        methods []]
                                       (cond
                                         (is-at-end? toks) (parse-error (peek-token toks) "Expect '}' after class body.")
 
                                         (= :right-brace (:type (peek-token toks)))
-                                        [(stmt/->ClassDecl name-tok methods) (rest toks)]
+                                        [(stmt/->ClassDecl name-tok superclass methods) (rest toks)]
 
                                         :else
                                         (let [[method next-toks] (parse-function "method" toks)]

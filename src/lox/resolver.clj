@@ -121,11 +121,23 @@
 
 (defmethod resolve-node lox.stmt.ClassDecl [stmt]
            (let [enclosing-class *current-class*]
-                (binding [*current-class* :class]
+                ;; 13.3 Switch tracking mode to :subclass if it inherits
+                (binding [*current-class* (if (:superclass stmt) :subclass :class)]
                          (declare-var (:name stmt))
                          (define-var (:name stmt))
 
-                         ;; Create a scope specifically for 'this'
+                         (when (and (:superclass stmt)
+                                    (= (:lexeme (:name (:superclass stmt))) (:lexeme (:name stmt))))
+                               (err/error (:line (:name (:superclass stmt))) "A class can't inherit from itself."))
+
+                         (when (:superclass stmt)
+                               (resolve-node (:superclass stmt))
+                               ;; Push a dedicated scope for 'super'
+                               (begin-scope)
+                               (swap! *scopes* (fn [scopes]
+                                                   (cons (assoc (first scopes) "super" true)
+                                                         (rest scopes)))))
+
                          (begin-scope)
                          (swap! *scopes* (fn [scopes]
                                              (cons (assoc (first scopes) "this" true)
@@ -138,7 +150,24 @@
                                      (resolve-function method declaration)))
 
                          (end-scope)
+
+                         ;; Pop the 'super' scope if we added one
+                         (when (:superclass stmt)
+                               (end-scope))
+
                          nil)))
+
+(defmethod resolve-node lox.expr.Super [expr]
+           (cond
+             (= *current-class* :none)
+             (err/error (:line (:keyword expr)) "Can't use 'super' outside of a class.")
+
+             (not= *current-class* :subclass)
+             (err/error (:line (:keyword expr)) "Can't use 'super' in a class with no superclass.")
+
+             :else
+             (resolve-local expr (:keyword expr)))
+           nil)
 
 (defmethod resolve-node lox.stmt.Return [stmt]
            (when (= *current-function* :none)

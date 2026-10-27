@@ -23,3 +23,4 @@
 (defrecord Get [object name])
 (defrecord Set [object name value])
 (defrecord This [keyword])
+(defrecord Super [keyword method])

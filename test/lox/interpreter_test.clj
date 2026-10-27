@@ -386,3 +386,43 @@
       print p.x;
       print p.y;"]
                        (is (= "2\n3" (eval-to-string source))))))
+
+(deftest test-inheritance
+         (testing "Subclasses inherit methods from superclasses"
+                  (let [source "
+      class Doughnut {
+        cook() {
+          print \"Fry until golden brown.\";
+        }
+      }
+      class BostonCream < Doughnut {}
+      BostonCream().cook();"]
+                       (is (= "Fry until golden brown." (eval-to-string source)))))
+
+         (testing "Catches cyclic inheritance"
+                  (let [err-out (with-err-str (eval-to-string "class Oops < Oops {}"))]
+                       (is @err/had-error)
+                       (is (clojure.string/includes? err-out "A class can't inherit from itself."))))
+
+         (testing "Catches inheriting from non-classes"
+                  (let [err-out (with-err-str (eval-to-string "var NotClass = \"I am text\"; class Sub < NotClass {}"))]
+                       (is @err/had-runtime-error)
+                       (is (clojure.string/includes? err-out "Superclass must be a class.")))))
+
+(deftest test-super-calls
+         (testing "Superclass methods can be called from subclasses"
+                  (let [source "
+      class A {
+        method() {
+          print \"A method\";
+        }
+      }
+      class B < A {
+        method() {
+          print \"B method\";
+          super.method();
+        }
+      }
+      class C < B {}
+      C().method();"]
+                       (is (= "B method\nA method" (eval-to-string source))))))

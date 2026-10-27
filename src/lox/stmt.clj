@@ -14,4 +14,4 @@
 (defrecord While [condition body])
 (defrecord Function [name params body])
 (defrecord Return [keyword value])
-(defrecord ClassDecl [name methods])
+(defrecord ClassDecl [name superclass methods])

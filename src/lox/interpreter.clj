@@ -303,10 +303,15 @@
            (toString [_]
                      (str "<fn " (:lexeme (:name declaration)) ">")))
 
+;; Update find-method to traverse the inheritance chain
 (defn find-method [klass name-str]
-      (get (:methods klass) name-str))
+      (if (contains? (:methods klass) name-str)
+        (get (:methods klass) name-str)
+        (when (:superclass klass)
+              (find-method (:superclass klass) name-str))))
 
-(defrecord LoxClass [name methods]
+;; Update LoxClass to include superclass
+(defrecord LoxClass [name superclass methods]
            callable/LoxCallable
            (arity [this]
                   (let [initializer (find-method this "init")]
@@ -323,16 +328,30 @@
            Object
            (toString [_] name))
 
+;; Update execute for ClassDecl to evaluate the superclass
 (defmethod execute lox.stmt.ClassDecl [stmt]
-           (env/define (:lexeme (:name stmt)) nil)
-           (let [methods (reduce (fn [acc method-stmt]
+           (let [superclass (when (:superclass stmt)
+                                  (let [eval-super (evaluate (:superclass stmt))]
+                                       (if (instance? lox.interpreter.LoxClass eval-super)
+                                         eval-super
+                                         (throw (ex-info "Superclass must be a class."
+                                                         {:type :runtime-error :token (:name (:superclass stmt))})))))
+
+                 ;; 13.3 If it has a superclass, wrap the methods in an environment containing 'super'
+                 method-env (if superclass
+                              (cons (atom {"super" superclass}) env/*env-chain*)
+                              env/*env-chain*)
+
+                 methods (reduce (fn [acc method-stmt]
                                      (let [is-init (= "init" (:lexeme (:name method-stmt)))]
                                           (assoc acc (:lexeme (:name method-stmt))
-                                                 ;; Pass the is-init flag as the third argument
-                                                 (->LoxFunction method-stmt env/*env-chain* is-init))))
+                                                 ;; Inject the specialized method-env here!
+                                                 (->LoxFunction method-stmt method-env is-init))))
                                  {}
                                  (:methods stmt))
-                 klass (->LoxClass (:lexeme (:name stmt)) methods)]
+                 klass (->LoxClass (:lexeme (:name stmt)) superclass methods)]
+
+                (env/define (:lexeme (:name stmt)) nil)
                 (env/assign (:name stmt) klass)
                 nil))
 
@@ -368,3 +387,14 @@
                        value)
                   (throw (ex-info "Only instances have fields."
                                   {:type :runtime-error :token (:name expr)})))))
+
+(defmethod evaluate lox.expr.Super [expr]
+           (let [distance (.get ^java.util.IdentityHashMap @resolver/locals expr)
+                 superclass (env/get-var-at distance "super")
+                 ;; "this" is always stored in the scope immediately inner to "super" (distance - 1)
+                 object (env/get-var-at (dec distance) "this")
+                 method (find-method superclass (:lexeme (:method expr)))]
+                (if method
+                  (bind-method method object)
+                  (throw (ex-info (str "Undefined property '" (:lexeme (:method expr)) "'.")
+                                  {:type :runtime-error :token (:method expr)})))))
